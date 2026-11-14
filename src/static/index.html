@@ -1,0 +1,16 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>經費管理</title><link rel="stylesheet" href="/style.css?v=20261114-dependency-delete-1"></head>
+<body>
+<div id="systemGuard" class="system-guard" role="alertdialog" aria-modal="true" aria-live="assertive" aria-labelledby="systemGuardTitle" aria-describedby="systemGuardMessage">
+  <div class="system-guard-card">
+    <div class="system-guard-spinner" aria-hidden="true"></div>
+    <h1 id="systemGuardTitle">正在載入經費管理資料</h1>
+    <p id="systemGuardMessage">請稍候，載入完成後會自動進入系統。</p>
+  </div>
+</div>
+<header class="top"><div class="brand"><div class="brandmark">經</div><div><b>計畫經費管理</b><small>本機資料庫 · 單人管理</small></div></div><button class="iconbtn menu-toggle" id="topMenuToggle" type="button" aria-label="開啟頂端選單">☰</button><div class="top-actions"><div class="project-select"><label for="projectPick">目前計畫</label><select id="projectPick"></select><button class="iconbtn" id="editProject" title="編輯計畫">⚙</button></div><details class="theme-menu" id="themeMenu"><summary id="themeToggle">主題</summary><div class="theme-options"><button type="button" data-theme-choice="light">淺色</button><button type="button" data-theme-choice="dark">深色</button><button type="button" id="customThemeButton">自訂顏色</button><details class="theme-background-submenu"><summary>背景</summary><button type="button" id="uploadThemeBackground">上傳背景</button><button type="button" id="clearThemeBackground">移除背景</button></details></div></details><button class="primary" id="newProject">＋ 新增計畫</button></div></header>
+<div class="shell"><aside class="sidebar"><div class="nav-label">工作區</div><button class="nav" data-page="home"><span>⌂</span> 所有計畫</button><button class="nav active" data-page="overview"><span>◫</span> 經費總覽</button><button class="nav" data-page="budget"><span>▤</span> 預算明細</button><button class="nav" data-page="expenses"><span>↗</span> 核銷紀錄</button><button class="nav" data-page="transfers"><span>⇄</span> 經費流用</button><button class="nav" data-page="estimate"><span>％</span> 保費估算</button><button class="nav" data-page="application"><span>▧</span> 流用科目變更</button><button class="nav" data-page="options"><span>☷</span> 表單選項資料</button><button class="nav" data-page="email"><span>✉</span> Email 發送</button><button class="nav" data-page="import"><span>⇧</span> 匯入預算明細</button><button class="nav" data-page="import-expenses"><span>⇧</span> 匯入核銷紀錄</button><button class="nav" data-page="import-transfers"><span>⇧</span> 匯入流用紀錄</button><button class="nav" data-page="export"><span>⇩</span> 匯出資料</button><div class="sidebar-foot"><a href="/api/backup" download="經費管理備份.db">下載資料庫備份</a><br><a href="#" onclick="document.getElementById('restoreFile').click();return false">還原資料庫備份</a><input id="restoreFile" type="file" accept=".db,.sqlite" hidden><br><span class="dot"></span>資料儲存在此電腦</div></aside>
+<main class="main"><div id="content"></div></main></div>
+<div id="toast" class="toast" role="status" aria-live="polite" aria-atomic="true"></div><div id="modalRoot"></div>
+<script src="/app.js?v=20261114-dependency-delete-1"></script></body></html>

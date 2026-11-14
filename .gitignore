@@ -1,0 +1,18 @@
+﻿# Python
+.venv/
+venv/
+__pycache__/
+*.pyc
+
+# 密碼與金鑰
+.env
+
+# SQLite 資料庫（含實際資料）
+*.db
+*.sqlite
+*.sqlite3
+
+# 系統與編輯器
+Thumbs.db
+.vscode/
+.idea/
