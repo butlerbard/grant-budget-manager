@@ -1654,9 +1654,13 @@ body.table-workspace-page #content .table-wrap .table thead th{position:static}
 .system-guard[data-state="stopped"] .system-guard-card{border-top:5px solid #b42318}
 @keyframes system-guard-spin{to{transform:rotate(360deg)}}
 @media(prefers-reduced-motion:reduce){.system-guard-spinner{animation-duration:2s}}
-.expense-budget-confirm-back{z-index:31}
+.expense-budget-confirm-back{z-index:1330}
 .expense-budget-confirm{width:min(520px,100%);max-height:calc(90vh - 24px)}
 .expense-budget-confirm p{line-height:1.75;margin:10px 0;color:var(--ink)}
+.expense-budget-confirm-items{max-height:min(28vh,240px);overflow:auto;padding:0 12px;border:1px solid var(--line);border-radius:10px;background:var(--table-surface)}
+.expense-budget-confirm-items ul{margin:10px 0;padding-left:22px}
+.expense-budget-confirm-items li{padding:3px 0;line-height:1.55}
+.import-warning-list{max-height:min(24vh,220px);overflow:auto;padding-left:24px}
 .expense-budget-confirm-actions{display:flex;justify-content:flex-end;flex-wrap:wrap;gap:9px;margin-top:22px}
 @media(max-width:520px){.expense-budget-confirm-actions{display:grid;grid-template-columns:1fr}.expense-budget-confirm-actions button{width:100%}}
 
