@@ -2,12 +2,15 @@ from __future__ import annotations
 
 import csv
 import base64
+import binascii
+import gc
 import io
 import json
 import os
 import re
 import secrets
 import sqlite3
+import shutil
 import smtplib
 import ssl
 import sys
@@ -16,6 +19,7 @@ import webbrowser
 import zipfile
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from email.message import EmailMessage
+from email.utils import formataddr
 from xml.sax.saxutils import escape
 from datetime import date, datetime, timedelta
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -37,10 +41,19 @@ EMAIL_JOBS_LOCK = threading.Lock()
 
 def connect():
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-    db = sqlite3.connect(DB_PATH)
+    db = sqlite3.connect(DB_PATH, factory=ClosingConnection)
     db.row_factory = sqlite3.Row
     db.execute("PRAGMA foreign_keys=ON")
     return db
+
+
+class ClosingConnection(sqlite3.Connection):
+    def __exit__(self, exc_type, exc_value, traceback):
+        try:
+            super().__exit__(exc_type, exc_value, traceback)
+        finally:
+            self.close()
+        return False
 
 
 def display_error(error):
@@ -168,12 +181,24 @@ def initialize():
         DROP TRIGGER IF EXISTS email_recipient_project_unit_update;
         CREATE TRIGGER IF NOT EXISTS email_recipient_project_unit_insert BEFORE INSERT ON email_recipients
         WHEN (NEW.unit_id IS NOT NULL AND NOT EXISTS(SELECT 1 FROM units WHERE id=NEW.unit_id AND project_id=NEW.project_id)) OR NEW.unit_id IS NULL
-        BEGIN SELECT RAISE(ABORT,'收件人所屬單位必須屬於此計畫'); END;
+        BEGIN SELECT RAISE(ABORT,'收件人所屬單位必須屬於此專案'); END;
         CREATE TRIGGER IF NOT EXISTS email_recipient_project_unit_update BEFORE UPDATE OF project_id,role,unit_id ON email_recipients
         WHEN (NEW.unit_id IS NOT NULL AND NOT EXISTS(SELECT 1 FROM units WHERE id=NEW.unit_id AND project_id=NEW.project_id)) OR NEW.unit_id IS NULL
-        BEGIN SELECT RAISE(ABORT,'收件人所屬單位必須屬於此計畫'); END;
+        BEGIN SELECT RAISE(ABORT,'收件人所屬單位必須屬於此專案'); END;
         """)
         db.execute("INSERT OR IGNORE INTO app_settings(key,value) VALUES('default_estimate_rate','2.11')")
+        install_row=db.execute("SELECT value FROM app_settings WHERE key='smtp_install_id'").fetchone()
+        if not install_row:
+            install_id=secrets.token_hex(16)
+            db.execute("INSERT INTO app_settings(key,value) VALUES('smtp_install_id',?)",(install_id,))
+            smtp_row=db.execute("SELECT username,sender_email FROM email_smtp_settings WHERE id=1").fetchone()
+            legacy_identity=(smtp_row['username'] or smtp_row['sender_email']) if smtp_row else ''
+            if legacy_identity:
+                try:
+                    import keyring
+                    legacy_password=keyring.get_password('project-finance-smtp',_legacy_smtp_keyring_account(legacy_identity))
+                    if legacy_password:keyring.set_password('project-finance-smtp',_smtp_account_for_install(install_id,legacy_identity),legacy_password)
+                except Exception:pass
         # Keep the project's option IDs stable while the old text columns are
         # retained for readable exports and the existing UI data contract.
         for kind, table in (('source','funding_sources'),('owner','units'),('subject','budget_subjects'),('category','budget_attributes')):
@@ -238,10 +263,10 @@ def initialize():
           DELETE FROM budget_attributes WHERE id=OLD.id AND OLD.kind='category';
         END;
         CREATE TRIGGER IF NOT EXISTS budget_item_option_ids AFTER INSERT ON budget_items BEGIN
-          SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM funding_sources WHERE project_id=NEW.project_id AND name=NEW.source) THEN RAISE(ABORT,'經費類別不屬於此計畫') END;
-          SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM units WHERE project_id=NEW.project_id AND name=NEW.owner) THEN RAISE(ABORT,'單位不屬於此計畫') END;
-          SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM budget_subjects WHERE project_id=NEW.project_id AND name=NEW.subject) THEN RAISE(ABORT,'預算科目不屬於此計畫') END;
-          SELECT CASE WHEN TRIM(NEW.category)='' OR NOT EXISTS(SELECT 1 FROM budget_attributes WHERE project_id=NEW.project_id AND name=NEW.category) THEN RAISE(ABORT,'經費屬性必須是本計畫已建立的選項') END;
+          SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM funding_sources WHERE project_id=NEW.project_id AND name=NEW.source) THEN RAISE(ABORT,'經費類別不屬於此專案') END;
+          SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM units WHERE project_id=NEW.project_id AND name=NEW.owner) THEN RAISE(ABORT,'單位不屬於此專案') END;
+          SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM budget_subjects WHERE project_id=NEW.project_id AND name=NEW.subject) THEN RAISE(ABORT,'預算科目不屬於此專案') END;
+          SELECT CASE WHEN TRIM(NEW.category)='' OR NOT EXISTS(SELECT 1 FROM budget_attributes WHERE project_id=NEW.project_id AND name=NEW.category) THEN RAISE(ABORT,'經費屬性必須是本專案已建立的選項') END;
           UPDATE budget_items SET funding_source_id=(SELECT id FROM funding_sources WHERE project_id=NEW.project_id AND name=NEW.source),
             unit_id=(SELECT id FROM units WHERE project_id=NEW.project_id AND name=NEW.owner),
             budget_subject_id=(SELECT id FROM budget_subjects WHERE project_id=NEW.project_id AND name=NEW.subject),
@@ -249,10 +274,10 @@ def initialize():
             WHERE id=NEW.id;
         END;
         CREATE TRIGGER IF NOT EXISTS budget_item_option_ids_update AFTER UPDATE OF project_id,source,owner,subject,category ON budget_items BEGIN
-          SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM funding_sources WHERE project_id=NEW.project_id AND name=NEW.source) THEN RAISE(ABORT,'經費類別不屬於此計畫') END;
-          SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM units WHERE project_id=NEW.project_id AND name=NEW.owner) THEN RAISE(ABORT,'單位不屬於此計畫') END;
-          SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM budget_subjects WHERE project_id=NEW.project_id AND name=NEW.subject) THEN RAISE(ABORT,'預算科目不屬於此計畫') END;
-          SELECT CASE WHEN TRIM(NEW.category)='' OR NOT EXISTS(SELECT 1 FROM budget_attributes WHERE project_id=NEW.project_id AND name=NEW.category) THEN RAISE(ABORT,'經費屬性必須是本計畫已建立的選項') END;
+          SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM funding_sources WHERE project_id=NEW.project_id AND name=NEW.source) THEN RAISE(ABORT,'經費類別不屬於此專案') END;
+          SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM units WHERE project_id=NEW.project_id AND name=NEW.owner) THEN RAISE(ABORT,'單位不屬於此專案') END;
+          SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM budget_subjects WHERE project_id=NEW.project_id AND name=NEW.subject) THEN RAISE(ABORT,'預算科目不屬於此專案') END;
+          SELECT CASE WHEN TRIM(NEW.category)='' OR NOT EXISTS(SELECT 1 FROM budget_attributes WHERE project_id=NEW.project_id AND name=NEW.category) THEN RAISE(ABORT,'經費屬性必須是本專案已建立的選項') END;
           UPDATE budget_items SET funding_source_id=(SELECT id FROM funding_sources WHERE project_id=NEW.project_id AND name=NEW.source),
             unit_id=(SELECT id FROM units WHERE project_id=NEW.project_id AND name=NEW.owner),
             budget_subject_id=(SELECT id FROM budget_subjects WHERE project_id=NEW.project_id AND name=NEW.subject),
@@ -260,26 +285,26 @@ def initialize():
             WHERE id=NEW.id;
         END;
         CREATE TRIGGER IF NOT EXISTS budget_item_fk_scope BEFORE UPDATE OF funding_source_id,unit_id,budget_subject_id,budget_attribute_id ON budget_items BEGIN
-          SELECT CASE WHEN NEW.funding_source_id IS NULL OR NOT EXISTS(SELECT 1 FROM funding_sources WHERE id=NEW.funding_source_id AND project_id=NEW.project_id) THEN RAISE(ABORT,'經費類別 ID 不屬於此計畫') END;
-          SELECT CASE WHEN NEW.unit_id IS NULL OR NOT EXISTS(SELECT 1 FROM units WHERE id=NEW.unit_id AND project_id=NEW.project_id) THEN RAISE(ABORT,'單位 ID 不屬於此計畫') END;
-          SELECT CASE WHEN NEW.budget_subject_id IS NULL OR NOT EXISTS(SELECT 1 FROM budget_subjects WHERE id=NEW.budget_subject_id AND project_id=NEW.project_id) THEN RAISE(ABORT,'預算科目 ID 不屬於此計畫') END;
-          SELECT CASE WHEN NEW.budget_attribute_id IS NULL OR NOT EXISTS(SELECT 1 FROM budget_attributes WHERE id=NEW.budget_attribute_id AND project_id=NEW.project_id) THEN RAISE(ABORT,'經費屬性 ID 不屬於此計畫') END;
+          SELECT CASE WHEN NEW.funding_source_id IS NULL OR NOT EXISTS(SELECT 1 FROM funding_sources WHERE id=NEW.funding_source_id AND project_id=NEW.project_id) THEN RAISE(ABORT,'經費類別 ID 不屬於此專案') END;
+          SELECT CASE WHEN NEW.unit_id IS NULL OR NOT EXISTS(SELECT 1 FROM units WHERE id=NEW.unit_id AND project_id=NEW.project_id) THEN RAISE(ABORT,'單位 ID 不屬於此專案') END;
+          SELECT CASE WHEN NEW.budget_subject_id IS NULL OR NOT EXISTS(SELECT 1 FROM budget_subjects WHERE id=NEW.budget_subject_id AND project_id=NEW.project_id) THEN RAISE(ABORT,'預算科目 ID 不屬於此專案') END;
+          SELECT CASE WHEN NEW.budget_attribute_id IS NULL OR NOT EXISTS(SELECT 1 FROM budget_attributes WHERE id=NEW.budget_attribute_id AND project_id=NEW.project_id) THEN RAISE(ABORT,'經費屬性 ID 不屬於此專案') END;
         END;
         CREATE TRIGGER IF NOT EXISTS expense_budget_item_id AFTER INSERT ON expenses BEGIN
-          SELECT CASE WHEN NEW.batch_id IS NOT NULL AND NOT EXISTS(SELECT 1 FROM reimbursement_batches WHERE id=NEW.batch_id AND project_id=NEW.project_id) THEN RAISE(ABORT,'核銷批次不屬於此計畫') END;
+          SELECT CASE WHEN NEW.batch_id IS NOT NULL AND NOT EXISTS(SELECT 1 FROM reimbursement_batches WHERE id=NEW.batch_id AND project_id=NEW.project_id) THEN RAISE(ABORT,'核銷批次不屬於此專案') END;
           SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM budget_items WHERE project_id=NEW.project_id AND source=NEW.source AND owner=NEW.owner AND subject=NEW.subject AND category=NEW.category) THEN RAISE(ABORT,'核銷資料找不到完全相符的預算項目') END;
           UPDATE expenses SET budget_item_id=(SELECT id FROM budget_items WHERE project_id=NEW.project_id AND source=NEW.source AND owner=NEW.owner AND subject=NEW.subject AND category=NEW.category) WHERE id=NEW.id;
         END;
         CREATE TRIGGER IF NOT EXISTS expense_budget_item_id_update AFTER UPDATE OF project_id,source,owner,subject,category ON expenses BEGIN
-          SELECT CASE WHEN NEW.batch_id IS NOT NULL AND NOT EXISTS(SELECT 1 FROM reimbursement_batches WHERE id=NEW.batch_id AND project_id=NEW.project_id) THEN RAISE(ABORT,'核銷批次不屬於此計畫') END;
+          SELECT CASE WHEN NEW.batch_id IS NOT NULL AND NOT EXISTS(SELECT 1 FROM reimbursement_batches WHERE id=NEW.batch_id AND project_id=NEW.project_id) THEN RAISE(ABORT,'核銷批次不屬於此專案') END;
           SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM budget_items WHERE project_id=NEW.project_id AND source=NEW.source AND owner=NEW.owner AND subject=NEW.subject AND category=NEW.category) THEN RAISE(ABORT,'核銷資料找不到完全相符的預算項目') END;
           UPDATE expenses SET budget_item_id=(SELECT id FROM budget_items WHERE project_id=NEW.project_id AND source=NEW.source AND owner=NEW.owner AND subject=NEW.subject AND category=NEW.category) WHERE id=NEW.id;
         END;
         CREATE TRIGGER IF NOT EXISTS expense_batch_project_update AFTER UPDATE OF project_id,batch_id ON expenses BEGIN
-          SELECT CASE WHEN NEW.batch_id IS NOT NULL AND NOT EXISTS(SELECT 1 FROM reimbursement_batches WHERE id=NEW.batch_id AND project_id=NEW.project_id) THEN RAISE(ABORT,'核銷批次不屬於此計畫') END;
+          SELECT CASE WHEN NEW.batch_id IS NOT NULL AND NOT EXISTS(SELECT 1 FROM reimbursement_batches WHERE id=NEW.batch_id AND project_id=NEW.project_id) THEN RAISE(ABORT,'核銷批次不屬於此專案') END;
         END;
         CREATE TRIGGER IF NOT EXISTS expense_budget_fk_scope BEFORE UPDATE OF budget_item_id ON expenses BEGIN
-          SELECT CASE WHEN NEW.budget_item_id IS NULL OR NOT EXISTS(SELECT 1 FROM budget_items WHERE id=NEW.budget_item_id AND project_id=NEW.project_id) THEN RAISE(ABORT,'核銷預算項目 ID 不屬於此計畫') END;
+          SELECT CASE WHEN NEW.budget_item_id IS NULL OR NOT EXISTS(SELECT 1 FROM budget_items WHERE id=NEW.budget_item_id AND project_id=NEW.project_id) THEN RAISE(ABORT,'核銷預算項目 ID 不屬於此專案') END;
         END;
         CREATE TRIGGER IF NOT EXISTS transfer_budget_item_ids AFTER INSERT ON transfers BEGIN
           SELECT CASE WHEN NEW.status='executed' AND NOT EXISTS(SELECT 1 FROM budget_items WHERE project_id=NEW.project_id AND source=NEW.source AND owner=NEW.from_owner AND subject=NEW.from_subject AND category=NEW.from_category) THEN RAISE(ABORT,'流出項目找不到完全相符的預算') END;
@@ -294,21 +319,21 @@ def initialize():
             to_budget_item_id=CASE WHEN NEW.status='executed' THEN (SELECT id FROM budget_items WHERE project_id=NEW.project_id AND source=NEW.source AND owner=NEW.to_owner AND subject=NEW.to_subject AND category=NEW.to_category) ELSE NULL END WHERE id=NEW.id;
         END;
         CREATE TRIGGER IF NOT EXISTS transfer_budget_fk_scope BEFORE UPDATE OF from_budget_item_id,to_budget_item_id ON transfers BEGIN
-          SELECT CASE WHEN NEW.status='executed' AND (NEW.from_budget_item_id IS NULL OR NOT EXISTS(SELECT 1 FROM budget_items WHERE id=NEW.from_budget_item_id AND project_id=NEW.project_id)) THEN RAISE(ABORT,'流出預算 ID 不屬於此計畫') END;
-          SELECT CASE WHEN NEW.status='executed' AND (NEW.to_budget_item_id IS NULL OR NOT EXISTS(SELECT 1 FROM budget_items WHERE id=NEW.to_budget_item_id AND project_id=NEW.project_id)) THEN RAISE(ABORT,'流入預算 ID 不屬於此計畫') END;
+          SELECT CASE WHEN NEW.status='executed' AND (NEW.from_budget_item_id IS NULL OR NOT EXISTS(SELECT 1 FROM budget_items WHERE id=NEW.from_budget_item_id AND project_id=NEW.project_id)) THEN RAISE(ABORT,'流出預算 ID 不屬於此專案') END;
+          SELECT CASE WHEN NEW.status='executed' AND (NEW.to_budget_item_id IS NULL OR NOT EXISTS(SELECT 1 FROM budget_items WHERE id=NEW.to_budget_item_id AND project_id=NEW.project_id)) THEN RAISE(ABORT,'流入預算 ID 不屬於此專案') END;
           SELECT CASE WHEN NEW.status='planned' AND NEW.to_budget_item_id IS NOT NULL THEN RAISE(ABORT,'規劃中的流用不可連結實際流入預算') END;
-          SELECT CASE WHEN NEW.from_budget_item_id IS NOT NULL AND NOT EXISTS(SELECT 1 FROM budget_items WHERE id=NEW.from_budget_item_id AND project_id=NEW.project_id) THEN RAISE(ABORT,'流出預算 ID 不屬於此計畫') END;
+          SELECT CASE WHEN NEW.from_budget_item_id IS NOT NULL AND NOT EXISTS(SELECT 1 FROM budget_items WHERE id=NEW.from_budget_item_id AND project_id=NEW.project_id) THEN RAISE(ABORT,'流出預算 ID 不屬於此專案') END;
         END;
         CREATE TRIGGER IF NOT EXISTS estimate_subject_id AFTER INSERT ON estimate_rules BEGIN
-          SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM budget_subjects WHERE project_id=NEW.project_id AND name=NEW.subject) THEN RAISE(ABORT,'估算科目不屬於此計畫') END;
+          SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM budget_subjects WHERE project_id=NEW.project_id AND name=NEW.subject) THEN RAISE(ABORT,'估算科目不屬於此專案') END;
           UPDATE estimate_rules SET budget_subject_id=(SELECT id FROM budget_subjects WHERE project_id=NEW.project_id AND name=NEW.subject) WHERE id=NEW.id;
         END;
         CREATE TRIGGER IF NOT EXISTS estimate_subject_id_update AFTER UPDATE OF project_id,subject ON estimate_rules BEGIN
-          SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM budget_subjects WHERE project_id=NEW.project_id AND name=NEW.subject) THEN RAISE(ABORT,'估算科目不屬於此計畫') END;
+          SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM budget_subjects WHERE project_id=NEW.project_id AND name=NEW.subject) THEN RAISE(ABORT,'估算科目不屬於此專案') END;
           UPDATE estimate_rules SET budget_subject_id=(SELECT id FROM budget_subjects WHERE project_id=NEW.project_id AND name=NEW.subject) WHERE id=NEW.id;
         END;
         CREATE TRIGGER IF NOT EXISTS estimate_subject_fk_scope BEFORE UPDATE OF budget_subject_id ON estimate_rules BEGIN
-          SELECT CASE WHEN NEW.budget_subject_id IS NULL OR NOT EXISTS(SELECT 1 FROM budget_subjects WHERE id=NEW.budget_subject_id AND project_id=NEW.project_id) THEN RAISE(ABORT,'估算科目 ID 不屬於此計畫') END;
+          SELECT CASE WHEN NEW.budget_subject_id IS NULL OR NOT EXISTS(SELECT 1 FROM budget_subjects WHERE id=NEW.budget_subject_id AND project_id=NEW.project_id) THEN RAISE(ABORT,'估算科目 ID 不屬於此專案') END;
         END;
         """)
         db.execute("INSERT OR IGNORE INTO schema_meta(version) VALUES(2)")
@@ -325,18 +350,27 @@ def fnum(x):
 def round_amount(x):
     try:
         raw=str(x if x is not None else '').strip()
-        if not re.fullmatch(r'[+-]?(?:\d+|\d{1,3}(?:,\d{3})+)(?:\.\d+)?',raw):
-            raise ValueError('金額格式不正確，請輸入數字，例如 2000 或 2,000')
-        raw=raw.replace(',','')
-        return int(Decimal(raw).quantize(Decimal('1'),rounding=ROUND_HALF_UP))
-    except (InvalidOperation,ValueError,TypeError):
+        if isinstance(x,(int,float,Decimal)) and not isinstance(x,bool):value=Decimal(raw)
+        else:
+            if not re.fullmatch(r'[+-]?(?:\d+|\d{1,3}(?:,\d{3})+)(?:\.\d+)?',raw):
+                raise ValueError('金額格式不正確，請輸入數字，例如 2000 或 2,000')
+            value=Decimal(raw.replace(',',''))
+        return int(value.to_integral_value(rounding=ROUND_HALF_UP))
+    except (InvalidOperation,ValueError,TypeError,OverflowError):
         raise ValueError('金額格式不正確，請輸入數字，例如 2000 或 2,000')
+
+
+MAX_SAFE_MONEY=2**53-1
+def input_amount(value,label):
+    amount=round_amount(value)
+    if abs(amount)>MAX_SAFE_MONEY:raise ValueError(f'{label}不可超過 {MAX_SAFE_MONEY:,} 元，以確保整數精度')
+    return amount
 
 
 def validate_transfer_date(project,value):
     date=parse_date(value,'流用日期')
     if not date or not project['start_date']<=date<=project['end_date']:
-        raise ValueError('流用日期必須位於計畫執行起日至執行迄日之間')
+        raise ValueError('流用日期必須位於專案執行起日至執行迄日之間')
     return date
 
 
@@ -349,24 +383,26 @@ def transfer_overdraws(db,pid,ids):
     """Return per-budget deficits that would remain after selected transfers are removed."""
     out=[]
     for item in totals(db,pid):
-        outgoing=sum(round_amount(r['amount']) for r in db.execute(
+        outgoing=sum(round_amount(r['amount'] or 0) for r in db.execute(
             f"SELECT amount FROM transfers WHERE project_id=? AND from_budget_item_id=? AND status='executed' AND id IN ({','.join('?' for _ in ids)})",
             [pid,item['id'],*ids])) if ids else 0
-        incoming=sum(round_amount(r['amount']) for r in db.execute(
+        incoming=sum(round_amount(r['amount'] or 0) for r in db.execute(
             f"SELECT amount FROM transfers WHERE project_id=? AND to_budget_item_id=? AND status='executed' AND id IN ({','.join('?' for _ in ids)})",
             [pid,item['id'],*ids])) if ids else 0
         after=item['balance']+outgoing-incoming
-        released=sum(round_amount(r['amount']) for r in db.execute(
+        released=sum(round_amount(r['amount'] or 0) for r in db.execute(
             f"SELECT amount FROM transfers WHERE project_id=? AND from_budget_item_id=? AND status='planned' AND id IN ({','.join('?' for _ in ids)})",
             [pid,item['id'],*ids])) if ids else 0
         required=max(0,item.get('reserved_out',0)-released)
-        if after<0 or after<required:out.append({'source':item['source'],'owner':item['owner'],'subject':item['subject'],'category':item['category'],'deficit':max(-after,required-after),'reserved_deficit':max(0,required-after)})
+        before=item['balance']
+        if after!=before and (after<0 or (required>0 and after<required)):
+            out.append({'source':item['source'],'owner':item['owner'],'subject':item['subject'],'category':item['category'],'deficit':max(-after,required-after),'reserved_deficit':max(0,required-after) if required>0 else 0})
     return out
 
 
 def validate_ledger_caps(db,pid):
     items=totals(db,pid)
-    groups=[('全計畫',items)]
+    groups=[('全專案',items)]
     for key,label in [('owner','單位'),('source','經費類別')]:
         groups.extend((f'{label}「{name}」',[x for x in items if x[key]==name]) for name in {x[key] for x in items})
     for label,rows in groups:
@@ -376,7 +412,7 @@ def validate_ledger_caps(db,pid):
 
 def validate_reserved_funding(db,pid):
     for item in totals(db,pid):
-        if item['reserved_out']>item['balance']:
+        if item['reserved_out']>0 and item['reserved_out']>item['balance']:
             raise ValueError(f"此操作會占用「{item['owner']}／{item['subject']}」已圈存的規劃流用 {item['reserved_out']:,} 元；請先調整或取消規劃，本次未變更資料")
 
 
@@ -384,7 +420,7 @@ def check_source_caps(db, project_id, totals_by_source):
     p=require_project(db,project_id)
     allocated=sum(round_amount(v) for v in totals_by_source.values())
     if allocated>round_amount(p['total_budget']):
-        raise ValueError(f'預算明細合計 {allocated:,} 元，超過計畫總額 {round_amount(p["total_budget"]):,} 元')
+        raise ValueError(f'預算明細合計 {allocated:,} 元，超過專案總額 {round_amount(p["total_budget"]):,} 元')
 
 
 def parse_date(value, field):
@@ -404,14 +440,14 @@ def parse_date(value, field):
 
 def validate_expense_dates(project, reimburse, voucher, row_label='核銷紀錄'):
     if not project['start_date'] or not project['end_date']:
-        raise ValueError('請先在計畫資料填妥執行起日與執行迄日，才能登錄核銷日期')
-    start=parse_date(project['start_date'],'計畫執行起日')
-    end=parse_date(project['end_date'],'計畫執行迄日')
-    for label,value in (('核銷日期',reimburse),('憑證日期',voucher)):
+        raise ValueError('請先在專案資料填妥執行起日與執行迄日，才能填寫登錄日期')
+    start=parse_date(project['start_date'],'專案執行起日')
+    end=parse_date(project['end_date'],'專案執行迄日')
+    for label,value in (('登錄日期',reimburse),('憑證日期',voucher)):
         if value and ((start and value<start) or (end and value>end)):
-            raise ValueError(f'{row_label}的{label}須在計畫執行期間內（{start or "未設定"} 至 {end or "未設定"}）')
+            raise ValueError(f'{row_label}的{label}須在專案執行期間內（{start or "未設定"} 至 {end or "未設定"}）')
     if reimburse and voucher and voucher>reimburse:
-        raise ValueError(f'{row_label}的憑證日期不可晚於核銷日期')
+        raise ValueError(f'{row_label}的憑證日期不可晚於登錄日期')
 
 
 def validate_payee_name(value):
@@ -429,7 +465,7 @@ def import_payee_pairs(names, amounts, total, row_num):
         raise ValueError(f'第 {row_num} 列付款對象與分配金額需成對填寫（以「；」分隔）')
     pairs=[{'name':n,'amount':round_amount(v)} for n,v in zip(names,values)]
     if sum(x['amount'] for x in pairs)!=total:
-        raise ValueError(f'第 {row_num} 列付款分配合計需等於核銷總額 {total:,} 元')
+        raise ValueError(f'第 {row_num} 列付款分配合計需等於核銷金額 {total:,} 元')
     return pairs
 
 
@@ -469,22 +505,27 @@ def totals(db, project_id):
     return result
 
 
-def flow_change_report(db, project_id, start, end):
+def flow_change_report(db, project_id, start, end, include_category=False):
     if not start or not end or end < start: raise ValueError('請輸入有效的流用日期範圍')
-    groups=db.execute("""
-      SELECT b.funding_source_id,b.budget_subject_id,fs.name AS source,bs.name AS subject
-      FROM budget_items b JOIN funding_sources fs ON fs.id=b.funding_source_id JOIN budget_subjects bs ON bs.id=b.budget_subject_id
-      WHERE b.project_id=? GROUP BY b.funding_source_id,b.budget_subject_id ORDER BY fs.name,bs.name
-    """,(project_id,)).fetchall()
+    if include_category:
+        groups=db.execute("""SELECT b.funding_source_id,b.budget_subject_id,b.budget_attribute_id,fs.name AS source,bs.name AS subject,ba.name AS category FROM budget_items b JOIN funding_sources fs ON fs.id=b.funding_source_id JOIN budget_subjects bs ON bs.id=b.budget_subject_id LEFT JOIN budget_attributes ba ON ba.id=b.budget_attribute_id WHERE b.project_id=? GROUP BY b.funding_source_id,b.budget_subject_id,b.budget_attribute_id ORDER BY fs.name,ba.name,bs.name""",(project_id,)).fetchall()
+    else:
+        groups=db.execute("""SELECT b.funding_source_id,b.budget_subject_id,fs.name AS source,bs.name AS subject FROM budget_items b JOIN funding_sources fs ON fs.id=b.funding_source_id JOIN budget_subjects bs ON bs.id=b.budget_subject_id WHERE b.project_id=? GROUP BY b.funding_source_id,b.budget_subject_id ORDER BY fs.name,bs.name""",(project_id,)).fetchall()
     report=[]
     for g in groups:
         args=(project_id,g['funding_source_id'],g['budget_subject_id'])
-        base=db.execute("SELECT COALESCE(SUM(initial),0) FROM budget_items WHERE project_id=? AND funding_source_id=? AND budget_subject_id=?",args).fetchone()[0]
+        category_clause=' AND budget_attribute_id IS ?' if include_category else ''
+        transfer_category_clause=' AND x.budget_attribute_id IS ?' if include_category else ''
+        query_args=args+(g['budget_attribute_id'],) if include_category else args
+        base=db.execute("SELECT COALESCE(SUM(initial),0) FROM budget_items WHERE project_id=? AND funding_source_id=? AND budget_subject_id=?"+category_clause,query_args).fetchone()[0]
         def moved(column, cutoff, operator):
-            return db.execute(f"SELECT COALESCE(SUM(t.amount),0) FROM transfers t JOIN budget_items x ON x.id=t.{column} WHERE t.project_id=? AND t.status='executed' AND x.funding_source_id=? AND x.budget_subject_id=? AND t.date{operator}?",args+(cutoff,)).fetchone()[0]
+            return db.execute(f"SELECT COALESCE(SUM(t.amount),0) FROM transfers t JOIN budget_items x ON x.id=t.{column} WHERE t.project_id=? AND t.status='executed' AND x.funding_source_id=? AND x.budget_subject_id=?"+transfer_category_clause+f" AND t.date{operator}?",query_args+(cutoff,)).fetchone()[0]
         before=round_amount(base)+round_amount(moved('to_budget_item_id',start,'<'))-round_amount(moved('from_budget_item_id',start,'<'))
         after=round_amount(base)+round_amount(moved('to_budget_item_id',end,'<='))-round_amount(moved('from_budget_item_id',end,'<='))
-        if after!=before: report.append({'source':g['source'],'subject':g['subject'],'before':before,'after':after,'change':after-before})
+        if after!=before:
+            item={'source':g['source'],'subject':g['subject'],'before':before,'after':after,'change':after-before}
+            if include_category:item['category']=g['category'] or '未分類'
+            report.append(item)
     return report
 
 
@@ -533,9 +574,21 @@ def bootstrap():
         return data
 
 
-def smtp_keyring_account(username):
+def _smtp_account_for_install(install_id,username):
+    import hashlib
+    return hashlib.sha256((str(install_id)+'|'+str(username)).encode('utf-8')).hexdigest()
+
+
+def _legacy_smtp_keyring_account(username):
     import hashlib
     return hashlib.sha256((str(DB_PATH.resolve())+'|'+str(username)).encode('utf-8')).hexdigest()
+
+
+def smtp_keyring_account(username):
+    with connect() as db:
+        row=db.execute("SELECT value FROM app_settings WHERE key='smtp_install_id'").fetchone()
+    if not row:raise ValueError('找不到本機郵件憑證識別資料，請重新啟動系統')
+    return _smtp_account_for_install(row['value'],username)
 
 
 def smtp_credential_saved(username):
@@ -548,15 +601,15 @@ def smtp_credential_saved(username):
 
 def smtp_password(username):
     try:import keyring
-    except ImportError:raise ValueError('尚未安裝安全憑證套件。請關閉系統，依 README 的步驟安裝 requirements.txt 後重新啟動。')
+    except ImportError:raise ValueError('尚未安裝安全憑證套件。請關閉系統後執行 Install-optional-packages.bat 安裝選用套件，再重新啟動。')
     value=keyring.get_password('project-finance-smtp',smtp_keyring_account(username))
-    if not value:raise ValueError('尚未設定寄件密碼或應用程式專用密碼。請在「寄件設定」儲存後再測試。')
+    if not value:raise ValueError('尚未設定寄件密碼或應用程式專用密碼。請在「寄件設定」輸入密碼並儲存。')
     return value
 
 
 def require_project(db, pid):
     p=db.execute("SELECT * FROM projects WHERE id=?",(pid,)).fetchone()
-    if not p: raise ValueError('找不到計畫')
+    if not p: raise ValueError('找不到專案')
     return p
 
 
@@ -569,7 +622,7 @@ def ensure_project_option(db, project_id, kind, value):
 def require_project_option(db, project_id, kind, value, label):
     value=str(value or '').strip()
     if not value or not db.execute("SELECT 1 FROM project_options WHERE project_id=? AND kind=? AND value=?",(project_id,kind,value)).fetchone():
-        raise ValueError(f'「{value or label}」不是本計畫已建立的{label}，請先到「選項資料」新增或選取既有項目')
+        raise ValueError(f'「{value or label}」不是本專案已建立的{label}，請先到「選項資料」新增或選取既有項目')
 
 
 DELETE_OPTION_FIELD={'source':'source','owner':'owner','subject':'subject','category':'category'}
@@ -583,17 +636,19 @@ def deletion_impact(db, project_id, entity, ids):
     if entity=='budget':
         marks=','.join('?' for _ in ids)
         selected=[dict(r) for r in db.execute(f"SELECT * FROM budget_items WHERE project_id=? AND id IN ({marks}) ORDER BY id",[project_id,*ids])]
-        if len(selected)!=len(ids):raise ValueError('部分預算項目已不存在或不屬於目前計畫，請重新整理')
+        if len(selected)!=len(ids):raise ValueError('部分預算項目已不存在或不屬於目前專案，請重新整理')
         options=[]
     else:
         marks=','.join('?' for _ in ids)
         selected=[dict(r) for r in db.execute(f"SELECT * FROM project_options WHERE project_id=? AND id IN ({marks}) ORDER BY kind,value",[project_id,*ids])]
-        if len(selected)!=len(ids):raise ValueError('部分選項已不存在或不屬於目前計畫，請重新整理')
+        if len(selected)!=len(ids):raise ValueError('部分選項已不存在或不屬於目前專案，請重新整理')
         options=selected
 
     def option_match(row, kind, value):
         column=DELETE_OPTION_FIELD.get(kind)
-        return bool(column and row.get(column)==value)
+        if column and row.get(column)==value:return True
+        transfer_fields={'source':('source',),'owner':('from_owner','to_owner'),'subject':('from_subject','to_subject'),'category':('from_category','to_category')}.get(kind,())
+        return any(row.get(field)==value for field in transfer_fields)
 
     all_budgets=[dict(r) for r in db.execute('SELECT * FROM budget_items WHERE project_id=? ORDER BY source,owner,subject,category',(project_id,))]
     budget_ids={r['id'] for r in selected} if entity=='budget' else set()
@@ -643,7 +698,7 @@ def deletion_impact(db, project_id, entity, ids):
     cap_blockers=[]
     if budget_ids:
         remaining=[r for r in totals(db,project_id) if r['id'] not in budget_ids]
-        groups=[('全計畫',remaining)]
+        groups=[('全專案',remaining)]
         for key,label in (('owner','單位'),('source','經費類別')):
             for name in sorted({r[key] for r in remaining if r.get(key)}):
                 groups.append((f'{label}「{name}」',[r for r in remaining if r[key]==name]))
@@ -701,13 +756,13 @@ def apply_action(a):
     op=a.get('op')
     with connect() as db:
         db.execute('BEGIN IMMEDIATE')
-        tables={'project_save':'projects','budget_save':'budget_items','expense_save':'expenses','transfer_save':'transfers','rule_save':'estimate_rules','reference_save':'project_options','batch_save':'reimbursement_batches','email_recipient_save':'email_recipients'}
+        tables={'project_save':'projects','budget_save':'budget_items','expense_save':'expenses','transfer_save':'transfers','reference_save':'project_options','batch_save':'reimbursement_batches','email_recipient_save':'email_recipients'}
         data=a.get('data') or {}
         if op in tables and data.get('id'):
             table=tables[op]
             row=db.execute(f'SELECT * FROM {table} WHERE id=?',(int(data['id']),)).fetchone()
             if not row or (data.get('project_id') and 'project_id' in row.keys() and row['project_id']!=int(data['project_id'])):
-                raise ValueError('這筆資料已不存在或不屬於目前計畫，請重新整理後確認')
+                raise ValueError('這筆資料已不存在或不屬於目前專案，請重新整理後確認')
         if op=='email_recipient_save':
             v=a.get('data',{});pid=int(v.get('project_id') or 0);project=require_project(db,pid)
             role=str(v.get('role') or '');name=str(v.get('name') or '').strip();address=str(v.get('email') or '').strip()
@@ -717,7 +772,7 @@ def apply_action(a):
             rid=int(v['id']) if v.get('id') else None
             unit_id=int(v.get('unit_id') or 0)
             unit=db.execute('SELECT id FROM units WHERE id=? AND project_id=?',(unit_id,pid)).fetchone()
-            if not unit:raise ValueError('請選擇本計畫已建立的所屬單位')
+            if not unit:raise ValueError('請選擇本專案已建立的所屬單位')
             if rid:
                 existing=db.execute('SELECT id FROM email_recipients WHERE id=? AND project_id=?',(rid,pid)).fetchone()
                 if not existing:raise ValueError('找不到此收件人')
@@ -753,30 +808,33 @@ def apply_action(a):
                 try:
                     import keyring
                     keyring.set_password('project-finance-smtp',smtp_keyring_account(identity),password)
-                except ImportError:raise ValueError('尚未安裝安全憑證套件。請安裝 requirements.txt 後重新啟動。')
+                except ImportError:raise ValueError('尚未安裝安全憑證套件。請關閉系統後執行 Install-optional-packages.bat 安裝選用套件，再重新啟動。')
                 except Exception as e:raise ValueError(f'無法安全儲存密碼：{e}')
             elif clear_password:
                 try:
                     import keyring
                     for old_user in {old_identity,identity}:
-                        if old_user:keyring.delete_password('project-finance-smtp',smtp_keyring_account(old_user))
+                        if old_user:
+                            for account in {smtp_keyring_account(old_user),_legacy_smtp_keyring_account(old_user)}:
+                                try:keyring.delete_password('project-finance-smtp',account)
+                                except Exception:pass
                 except Exception:pass
             db.execute("INSERT INTO email_smtp_settings(id,host,port,security,username,sender_email,sender_name,updated_at) VALUES(1,?,?,?,?,?,?,CURRENT_TIMESTAMP) ON CONFLICT(id) DO UPDATE SET host=excluded.host,port=excluded.port,security=excluded.security,username=excluded.username,sender_email=excluded.sender_email,sender_name=excluded.sender_name,updated_at=CURRENT_TIMESTAMP",(host,port,security,username,sender,str(v.get('sender_name') or '').strip()))
             return {'ok':True,'credential_saved':smtp_credential_saved(identity)}
         if op=='project_save':
             v=a.get('data',{}); name=(v.get('name') or '').strip()
-            if not name: raise ValueError('請輸入計畫名稱')
+            if not name: raise ValueError('請輸入專案名稱')
             code=str(v.get('code','')).strip(); pid=int(v['id']) if v.get('id') else None
-            if not code:raise ValueError('計畫編號必填')
+            if not code:raise ValueError('專案編號必填')
             start=parse_date(v.get('start_date'),'執行起日'); end=parse_date(v.get('end_date'),'執行迄日')
             if not start or not end:raise ValueError('執行起日與執行迄日皆必填')
             if start>end:raise ValueError('執行起日不可晚於執行迄日')
-            if not str(v.get('total_budget','')).strip():raise ValueError('請輸入計畫經費總額')
+            if not str(v.get('total_budget','')).strip():raise ValueError('請輸入專案經費總額')
             for existing in db.execute("SELECT id,code FROM projects"):
                 if existing['id']==pid:continue
-                if str(existing['code'] or '').strip().casefold()==code.casefold():raise ValueError('此計畫編號已建立，請確認是否選擇既有計畫')
-            total_budget=round_amount(v.get('total_budget'))
-            if total_budget<0:raise ValueError('計畫經費總額不可小於 0')
+                if str(existing['code'] or '').strip().casefold()==code.casefold():raise ValueError('此專案編號已建立，請確認是否選擇既有專案')
+            total_budget=input_amount(v.get('total_budget'),'專案經費總額')
+            if total_budget<0:raise ValueError('專案經費總額不可小於 0')
             if pid:
                 require_project(db,pid)
                 for erow in db.execute("SELECT id,batch_id,voucher_date FROM expenses WHERE project_id=? AND voided=0",(pid,)):
@@ -787,7 +845,7 @@ def apply_action(a):
                 for transfer in db.execute("SELECT date,status FROM transfers WHERE project_id=?",(pid,)):
                     if transfer['date']:validate_transfer_date({'start_date':start,'end_date':end},transfer['date'])
                 allocated=round_amount(db.execute("SELECT COALESCE(SUM(initial),0) FROM budget_items WHERE project_id=?",(pid,)).fetchone()[0])
-                if allocated>total_budget:raise ValueError(f'目前預算明細已編列 {allocated:,} 元，計畫總額不可低於已編列金額')
+                if allocated>total_budget:raise ValueError(f'目前預算明細已編列 {allocated:,} 元，專案總額不可低於已編列金額')
             year=start[:4]
             vals=(name,year,code,v.get('unit',''),start,end,v.get('contact',''),v.get('phone',''),v.get('email',''),total_budget)
             if pid: db.execute("UPDATE projects SET name=?,year=?,code=?,unit=?,start_date=?,end_date=?,contact=?,phone=?,email=?,total_budget=? WHERE id=?",vals+(pid,))
@@ -812,7 +870,7 @@ def apply_action(a):
             if not str(v.get('initial','')).strip(): raise ValueError('初始預算必填')
             require_project_option(db,pid,'source',v.get('source'),'經費類別'); require_project_option(db,pid,'owner',v.get('owner'),'單位'); require_project_option(db,pid,'subject',v.get('subject'),'預算科目')
             require_project_option(db,pid,'category',v.get('category'),'經費屬性')
-            initial=round_amount(v.get('initial'))
+            initial=input_amount(v.get('initial'),'初始預算')
             if initial<0: raise ValueError('初始預算不可小於 0')
             before_total=sum(fnum(r[0]) for r in db.execute("SELECT initial FROM budget_items WHERE project_id=?",(pid,)))
             old_initial=0
@@ -829,33 +887,30 @@ def apply_action(a):
             check_source_caps(db,pid,source_totals)
             candidate_total=before_total-old_initial+initial
             plan_spent=fnum(db.execute("SELECT COALESCE(SUM(amount),0) FROM expenses WHERE project_id=? AND voided=0",(pid,)).fetchone()[0])
-            if candidate_total+0.0001<plan_spent: raise ValueError('調整後計畫預算低於已核銷總額，不能儲存')
+            if candidate_total+0.0001<plan_spent: raise ValueError('調整後專案預算低於已核銷金額，不能儲存')
             if v.get('id'):
                 owner_spent=fnum(db.execute("SELECT COALESCE(SUM(amount),0) FROM expenses WHERE project_id=? AND owner=? AND voided=0",(pid, v.get('owner',''))).fetchone()[0])
                 owner_budget=sum(x['budget'] for x in totals(db,pid) if x['owner']==v.get('owner'))
                 if oldrow and oldrow['owner']==v.get('owner'): owner_budget=owner_budget-old_initial+initial
                 elif not oldrow or oldrow['owner']!=v.get('owner'): owner_budget+=initial
-                if owner_budget+0.0001<owner_spent: raise ValueError('調整後單位預算低於其已核銷總額，不能儲存')
+                if owner_budget+0.0001<owner_spent: raise ValueError('調整後單位預算低於其已核銷金額，不能儲存')
                 db.execute("UPDATE budget_items SET source=?,owner=?,subject=?,category=?,initial=? WHERE id=?",(v['source'],v['owner'],v['subject'],v.get('category',''),initial,int(v['id'])))
             else:
                 existing=db.execute("SELECT 1 FROM budget_items WHERE project_id=? AND source=? AND owner=? AND subject=? AND category=?",(pid,v['source'],v['owner'],v['subject'],v['category'])).fetchone()
                 if existing: raise ValueError('此預算項目已存在，請在明細中編輯原項目')
                 owner_spent=fnum(db.execute("SELECT COALESCE(SUM(amount),0) FROM expenses WHERE project_id=? AND owner=? AND voided=0",(pid,v['owner'])).fetchone()[0])
                 owner_budget=sum(x['budget'] for x in totals(db,pid) if x['owner']==v['owner'])+initial
-                if owner_budget+0.0001<owner_spent: raise ValueError('調整後單位預算低於其已核銷總額，不能儲存')
+                if owner_budget+0.0001<owner_spent: raise ValueError('調整後單位預算低於其已核銷金額，不能儲存')
                 db.execute("INSERT INTO budget_items(project_id,source,owner,subject,category,initial) VALUES(?,?,?,?,?,?)",(pid,v['source'],v['owner'],v['subject'],v['category'],initial))
             ensure_project_option(db,pid,'owner',v['owner'])
             ensure_project_option(db,pid,'subject',v['subject'])
             ensure_project_option(db,pid,'category',v.get('category',''))
+            validate_ledger_caps(db,pid)
             validate_reserved_funding(db,pid)
             return {'ok':True}
         if op=='deletion_impact':
             pid=int(a.get('project_id') or 0);require_project(db,pid)
             return deletion_impact(db,pid,str(a.get('entity') or ''),a.get('ids') or [])
-        if op=='budget_delete':
-            item=db.execute("SELECT project_id FROM budget_items WHERE id=?",(int(a['id']),)).fetchone()
-            if not item:raise ValueError('找不到預算項目')
-            delete_with_impact(db,item['project_id'],'budget',[int(a['id'])]);return {'ok':True}
         if op=='budget_bulk_delete':
             pid=int(a['project_id']);require_project(db,pid);ids=list(dict.fromkeys(int(x) for x in a.get('ids',[])))
             if not ids:raise ValueError('請先勾選預算明細')
@@ -876,7 +931,7 @@ def apply_action(a):
             db.execute("INSERT INTO app_settings(key,value) VALUES('brandmark',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",(json.dumps(value,ensure_ascii=False),));return {'ok':True}
         if op=='theme_choice_save':
             theme=str(a.get('theme') or '')
-            if theme not in ('light','dark','macaron','custom'):raise ValueError('不支援的主題')
+            if theme not in ('light','dark','custom'):raise ValueError('不支援的主題')
             db.execute("INSERT INTO app_settings(key,value) VALUES('theme_choice',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",(json.dumps(theme),));return {'ok':True}
         if op=='custom_theme_save':
             palette=a.get('palette') or {}; keys=('canvas','paper','table','ink','accent')
@@ -918,7 +973,7 @@ def apply_action(a):
                     if not item:raise ValueError('復原後找不到對應預算項目，未執行變更')
                     projrow=require_project(db,pid);plan=min(round_amount(db.execute("SELECT COALESCE(SUM(initial),0) FROM budget_items WHERE project_id=?",(pid,)).fetchone()[0]),round_amount(projrow['total_budget']))
                     plan_used=round_amount(db.execute("SELECT COALESCE(SUM(amount),0) FROM expenses WHERE project_id=? AND voided=0",(pid,)).fetchone()[0])
-                    if plan_used+round_amount(row['amount'])>plan:raise ValueError('復原後會超過全計畫核銷上限，未執行變更')
+                    if plan_used+round_amount(row['amount'])>plan:raise ValueError('復原後會超過全專案核銷上限，未執行變更')
                     src_budget=round_amount(db.execute("SELECT COALESCE(SUM(initial),0) FROM budget_items WHERE project_id=? AND source=?",(pid,row['source'])).fetchone()[0]);src_used=round_amount(db.execute("SELECT COALESCE(SUM(amount),0) FROM expenses WHERE project_id=? AND source=? AND voided=0",(pid,row['source'])).fetchone()[0])
                     if src_used+round_amount(row['amount'])>src_budget:raise ValueError('復原後會超過此經費類別預算上限，未執行變更')
                     owner_cap=sum(x['budget'] for x in totals(db,pid) if x['owner']==row['owner']);owner_used=round_amount(db.execute("SELECT COALESCE(SUM(amount),0) FROM expenses WHERE project_id=? AND owner=? AND voided=0",(pid,row['owner'])).fetchone()[0])
@@ -930,21 +985,21 @@ def apply_action(a):
                 marks=','.join('?' for _ in ids);db.execute(f"UPDATE expenses SET voided=1 WHERE project_id=? AND id IN ({marks})",[pid,*ids])
             return {'ok':True,'count':len(ids),'voided':bool(voided)}
         if op=='expense_save':
-            v=a['data']; pid=int(v['project_id']); require_project(db,pid); total=round_amount(v.get('amount'))
+            v=a['data']; pid=int(v['project_id']); require_project(db,pid); total=input_amount(v.get('amount'),'核銷金額')
             if total<0: raise ValueError('核銷金額不可小於 0')
             if not all(str(v.get(k,'')).strip() for k in ('source','owner','subject','category')): raise ValueError('經費類別、單位、預算科目及經費屬性必填')
             require_project_option(db,pid,'source',v.get('source'),'經費類別'); require_project_option(db,pid,'owner',v.get('owner'),'單位'); require_project_option(db,pid,'subject',v.get('subject'),'預算科目'); require_project_option(db,pid,'category',v.get('category'),'經費屬性')
-            parse_date(v.get('voucher_date',''),'憑證日期')
+            voucher=parse_date(v.get('voucher_date',''),'憑證日期')
             rows=[]
             for x in v.get('payees') or []:
                 name=str(x.get('name') or '').strip(); raw=x.get('amount')
                 if not name and not str(raw if raw is not None else '').strip():continue
                 if not name or not str(raw if raw is not None else '').strip():raise ValueError('付款對象與分配金額需同時填寫，或都留白')
                 validate_payee_name(name)
-                val=round_amount(raw)
+                val=input_amount(raw,'付款分配金額')
                 if val<0:raise ValueError('付款分配金額不可小於 0')
                 rows.append({'name':name,'amount':val})
-            if rows and sum(x['amount'] for x in rows)!=total: raise ValueError(f'付款對象分配合計 {sum(x["amount"] for x in rows):,} 元，必須等於核銷總額 {total:,} 元')
+            if rows and sum(x['amount'] for x in rows)!=total: raise ValueError(f'付款對象分配合計 {sum(x["amount"] for x in rows):,} 元，必須等於核銷金額 {total:,} 元')
             item=db.execute("SELECT id FROM budget_items WHERE project_id=? AND source=? AND owner=? AND subject=? AND category=?",(pid,v['source'],v['owner'],v['subject'],v['category'])).fetchone()
             if not item:
                 if not v.get('create_missing_budget'):
@@ -960,13 +1015,12 @@ def apply_action(a):
                 effective_date=parse_date(batch['submitted_date'],'登錄日期')
             else:
                 effective_date=None
-            voucher=parse_date(v.get('voucher_date'),'憑證日期')
             validate_expense_dates(require_project(db,pid),effective_date,voucher)
             if not old or not old['voided']:
                 current_all=round_amount(db.execute("SELECT COALESCE(SUM(amount),0) FROM expenses WHERE project_id=? AND voided=0",(pid,)).fetchone()[0])-(round_amount(old['amount']) if old else 0)
                 project=require_project(db,pid); project_limit=sum(round_amount(x[0]) for x in db.execute("SELECT initial FROM budget_items WHERE project_id=?",(pid,)))
                 hard_plan_limit=round_amount(project['total_budget']); project_limit=min(project_limit,hard_plan_limit)
-                if current_all+total>project_limit: raise ValueError(f'超過全計畫核銷上限；目前最多可核銷 {max(0,project_limit-current_all):,} 元')
+                if current_all+total>project_limit: raise ValueError(f'超過全專案核銷上限；目前最多可核銷 {max(0,project_limit-current_all):,} 元')
                 source_budget=round_amount(db.execute("SELECT COALESCE(SUM(initial),0) FROM budget_items WHERE project_id=? AND source=?",(pid,v['source'])).fetchone()[0])
                 source_limit=source_budget
                 source_spent=round_amount(db.execute("SELECT COALESCE(SUM(amount),0) FROM expenses WHERE project_id=? AND source=? AND voided=0",(pid,v['source'])).fetchone()[0])
@@ -989,33 +1043,15 @@ def apply_action(a):
             ensure_project_option(db,pid,'owner',v['owner'])
             ensure_project_option(db,pid,'subject',v['subject'])
             return {'ok':True}
-        if op=='expense_void':
-            row=db.execute("SELECT * FROM expenses WHERE id=?",(int(a['id']),)).fetchone()
-            if row and row['voided']:
-                item=db.execute("SELECT id FROM budget_items WHERE project_id=? AND source=? AND owner=? AND subject=? AND category=?",(row['project_id'],row['source'],row['owner'],row['subject'],row['category'])).fetchone()
-                if not item: raise ValueError('找不到此核銷所屬的預算項目，無法復原')
-                p=require_project(db,row['project_id']); total=min(round_amount(db.execute("SELECT COALESCE(SUM(initial),0) FROM budget_items WHERE project_id=?",(row['project_id'],)).fetchone()[0]),round_amount(p['total_budget']))
-                spent=round_amount(db.execute("SELECT COALESCE(SUM(amount),0) FROM expenses WHERE project_id=? AND voided=0",(row['project_id'],)).fetchone()[0])
-                if spent+round_amount(row['amount'])>total: raise ValueError('復原後會超過全計畫核銷上限，無法復原')
-                source_budget=round_amount(db.execute("SELECT COALESCE(SUM(initial),0) FROM budget_items WHERE project_id=? AND source=?",(row['project_id'],row['source'])).fetchone()[0]); source_spent=round_amount(db.execute("SELECT COALESCE(SUM(amount),0) FROM expenses WHERE project_id=? AND source=? AND voided=0",(row['project_id'],row['source'])).fetchone()[0])
-                if source_spent+round_amount(row['amount'])>source_budget:raise ValueError('復原後會超過該經費來源預算餘額，無法復原')
-                owner_budget=sum(x['budget'] for x in totals(db,row['project_id']) if x['owner']==row['owner'])
-                owner_spent=fnum(db.execute("SELECT COALESCE(SUM(amount),0) FROM expenses WHERE project_id=? AND owner=? AND voided=0",(row['project_id'],row['owner'])).fetchone()[0])
-                if owner_spent+round_amount(row['amount'])>owner_budget: raise ValueError('復原後會超過該單位核銷上限，無法復原')
-                item_total=next((x for x in totals(db,row['project_id']) if x['id']==item['id']),None)
-                if item_total and item_total['reserved_out'] and round_amount(row['amount'])>max(0,item_total['balance']-item_total['reserved_out']):raise ValueError(f'復原後超過此預算明細扣除規劃流用後的可用額度（最多 {max(0,item_total["balance"]-item_total["reserved_out"]):,} 元）')
-            db.execute("UPDATE expenses SET voided=1-voided WHERE id=?",(int(a['id']),)); return {'ok':True}
-        if op=='expense_delete':
-            db.execute("DELETE FROM expenses WHERE id=?",(int(a['id']),)); return {'ok':True}
         if op=='transfer_save':
             v=a['data'];pid=int(v['project_id']);project=require_project(db,pid);status=str(v.get('status') or '')
             if status not in ('planned','executed'):raise ValueError('請選擇流用狀態')
             keys=('date','source','from_owner','from_subject','from_category','to_owner','to_subject','to_category')
             for key in keys:v[key]=str(v.get(key) or '').strip()
-            raw_amount=str(v.get('amount') if v.get('amount') is not None else '').strip();amount=round_amount(raw_amount) if raw_amount else None
+            raw_amount=str(v.get('amount') if v.get('amount') is not None else '').strip();amount=input_amount(raw_amount,'流用金額') if raw_amount else None
             v['note']=str(v.get('note') or '').strip()
             old=db.execute("SELECT * FROM transfers WHERE id=? AND project_id=?",(int(v['id']),pid)).fetchone() if v.get('id') else None
-            if v.get('id') and not old:raise ValueError('此流用紀錄已不存在或不屬於目前計畫')
+            if v.get('id') and not old:raise ValueError('此流用紀錄已不存在或不屬於目前專案')
             if old:validate_transfer_unlocked(old)
             if status=='executed':
                 if not all(v[k] for k in keys):raise ValueError('已流用需填妥流用日期、經費類別、流出與流入單位／屬性／科目')
@@ -1032,7 +1068,12 @@ def apply_action(a):
                 if v[key]:require_project_option(db,pid,'subject',v[key],'預算科目')
             for key in ('from_category','to_category'):
                 if v[key]:require_project_option(db,pid,'category',v[key],'經費屬性')
-            if status=='executed' and v['from_category']!=v['to_category']:raise ValueError('流出與流入經費屬性必須相同')
+            if v['from_category'] and v['from_category']!=v['to_category']:raise ValueError('流出經費屬性已選擇時，流入經費屬性必須相同')
+            if v['to_subject'] and not v['to_category']:raise ValueError('選擇流入預算科目前，請先選擇流入經費屬性')
+            if v['to_subject'] and v['to_category']:
+                mapped=db.execute("SELECT 1 FROM budget_items WHERE project_id=? AND source=? AND subject=? AND category=? LIMIT 1",(pid,v['source'],v['to_subject'],v['to_category'])).fetchone()
+                legacy_same=bool(old and old['source']==v['source'] and old['to_subject']==v['to_subject'] and old['to_category']==v['to_category'])
+                if not mapped and not legacy_same:raise ValueError('本專案尚無此「經費類別＋經費屬性＋預算科目」配對，請先到「預算明細」建立 0 元預算明細後再新增流用')
             if status=='executed' and v['from_owner']==v['to_owner'] and v['from_subject']==v['to_subject'] and v['from_category']==v['to_category']:raise ValueError('流出與流入不可為同一項目')
             if old:db.execute('DELETE FROM transfers WHERE id=?',(old['id'],))
             out=totals(db,pid);source_complete=all(v[k] for k in ('source','from_owner','from_subject','from_category'));src=None
@@ -1045,9 +1086,9 @@ def apply_action(a):
             elif status=='executed':raise ValueError('已流用必須填妥流出預算明細')
             target=None
             if status=='executed':
-                if v['to_owner']==v['from_owner'] and v['to_subject']==v['from_subject'] and v['to_category']==v['from_category']:raise ValueError('流出與流入不可為同一項目')
                 target=db.execute("SELECT id FROM budget_items WHERE project_id=? AND source=? AND owner=? AND subject=? AND category=?",(pid,v['source'],v['to_owner'],v['to_subject'],v['to_category'])).fetchone()
                 if not target:
+                    if not a.get('confirm_missing_budget_item'):raise ValueError('流入單位尚無相符的預算明細，請重新儲存並確認建立 0 元預算明細。')
                     db.execute("INSERT INTO budget_items(project_id,source,owner,subject,category,initial) VALUES(?,?,?,?,?,0)",(pid,v['source'],v['to_owner'],v['to_subject'],v['to_category']))
                     target=db.execute("SELECT id FROM budget_items WHERE project_id=? AND source=? AND owner=? AND subject=? AND category=?",(pid,v['source'],v['to_owner'],v['to_subject'],v['to_category'])).fetchone()
                 if amount>src['available_balance']:raise ValueError(f"扣除其他規劃流用後，此預算明細最多可再流出 {max(0,src['available_balance']):,} 元")
@@ -1066,24 +1107,13 @@ def apply_action(a):
             for key,kind in (('from_owner','owner'),('to_owner','owner'),('from_subject','subject'),('to_subject','subject')):
                 if v[key]:ensure_project_option(db,pid,kind,v[key])
             return {'ok':True}
-        if op=='transfer_delete':
-            row=db.execute('SELECT * FROM transfers WHERE id=?',(int(a['id']),)).fetchone()
-            if not row:raise ValueError('此流用紀錄已不存在，請重新整理')
-            validate_transfer_unlocked(row)
-            ids=[row['id']]; overdraws=transfer_overdraws(db,row['project_id'],ids)
-            if any(x.get('reserved_deficit') for x in overdraws):raise ValueError('刪除此流用會占用其他規劃紀錄已圈存的額度；請先調整或取消該規劃')
-            if overdraws and not a.get('confirm_overdraw'):return {'ok':True,'confirmation_required':True,'overdraws':overdraws}
-            db.execute("DELETE FROM transfers WHERE id=?",(int(a['id']),));
-            validate_reserved_funding(db,row['project_id'])
-            if not a.get('confirm_overdraw'):validate_ledger_caps(db,row['project_id'])
-            return {'ok':True}
         if op=='transfer_bulk_delete':
             pid=int(a['project_id']);require_project(db,pid)
             ids=list(dict.fromkeys(int(x) for x in a.get('ids',[])))
             if ids:
                 marks=','.join('?' for _ in ids)
                 rows=list(db.execute(f"SELECT * FROM transfers WHERE project_id=? AND id IN ({marks})",[pid,*ids]))
-                if {r['id'] for r in rows}!=set(ids):raise ValueError('部分流用紀錄不存在或不屬於此計畫，未執行刪除')
+                if {r['id'] for r in rows}!=set(ids):raise ValueError('部分流用紀錄不存在或不屬於此專案，未執行刪除')
                 for row in rows:validate_transfer_unlocked(row)
                 overdraws=transfer_overdraws(db,pid,ids)
                 if any(x.get('reserved_deficit') for x in overdraws):raise ValueError('刪除所選流用會占用其他規劃紀錄已圈存的額度；請先調整或取消規劃')
@@ -1095,25 +1125,16 @@ def apply_action(a):
             pid=int(a['project_id']);require_project(db,pid);ids=list(dict.fromkeys(int(x) for x in a.get('ids',[])))
             if not ids:raise ValueError('請先勾選流用紀錄')
             marks=','.join('?' for _ in ids);rows=list(db.execute(f"SELECT id,locked FROM transfers WHERE project_id=? AND id IN ({marks})",[pid,*ids]))
-            if {r['id'] for r in rows}!=set(ids):raise ValueError('部分流用紀錄不存在或不屬於此計畫')
+            if {r['id'] for r in rows}!=set(ids):raise ValueError('部分流用紀錄不存在或不屬於此專案')
             locked=op=='transfer_bulk_lock';db.execute(f"UPDATE transfers SET locked=? WHERE project_id=? AND id IN ({marks}) AND locked<>?",[int(locked),pid,*ids,int(locked)])
             return {'ok':True,'count':sum(bool(r['locked'])!=locked for r in rows)}
-        if op=='rule_save':
-            v=a['data']; pid=int(v['project_id']); require_project(db,pid)
-            if not v.get('subject','').strip(): raise ValueError('請輸入科目')
-            require_project_option(db,pid,'subject',v.get('subject'),'預算科目')
-            if v.get('id'):
-                try: db.execute("UPDATE estimate_rules SET subject=? WHERE id=? AND project_id=?",(v['subject'].strip(),int(v['id']),pid))
-                except sqlite3.IntegrityError: raise ValueError('此科目已納入估算')
-            else: db.execute("INSERT INTO estimate_rules(project_id,subject) VALUES(?,?) ON CONFLICT(project_id,subject) DO NOTHING",(pid,v['subject'].strip()))
-            return {'ok':True}
         if op=='rule_save_many':
             pid=int(a['project_id']); require_project(db,pid); rows=a.get('rules',[])
             subjects={r[0] for r in db.execute("SELECT DISTINCT subject FROM budget_items WHERE project_id=?",(pid,))}; seen=set()
             if not rows: raise ValueError('請新增至少一筆估算科目')
             for r in rows:
                 subject=(r.get('subject') or '').strip()
-                if subject not in subjects: raise ValueError(f'「{subject}」不是本計畫總預算科目')
+                if subject not in subjects: raise ValueError(f'「{subject}」不是本專案總預算科目')
                 if subject in seen: raise ValueError(f'本次輸入有重複科目：{subject}')
                 if db.execute("SELECT 1 FROM estimate_rules WHERE project_id=? AND subject=?",(pid,subject)).fetchone(): raise ValueError(f'「{subject}」已納入估算，請編輯既有項目')
                 seen.add(subject)
@@ -1124,8 +1145,6 @@ def apply_action(a):
             if not percent.is_finite():raise ValueError('共用倍率請輸入有效數字')
             if percent<0 or percent>100: raise ValueError('共用倍率請輸入 0 至 100 的百分比')
             db.execute("INSERT INTO app_settings(key,value) VALUES('default_estimate_rate',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",(str(percent),)); return {'ok':True}
-        if op=='rule_delete':
-            db.execute("DELETE FROM estimate_rules WHERE id=?",(int(a['id']),)); return {'ok':True}
         if op=='rule_bulk_delete':
             ids=list(dict.fromkeys(int(x) for x in a.get('ids',[])))
             if ids:
@@ -1156,7 +1175,6 @@ def apply_action(a):
                     db.execute("UPDATE budget_items SET subject=? WHERE project_id=? AND subject=?",(value,pid,old['value'])); db.execute("UPDATE expenses SET subject=? WHERE project_id=? AND subject=?",(value,pid,old['value']))
                     db.execute("UPDATE transfers SET from_subject=? WHERE project_id=? AND from_subject=?",(value,pid,old['value'])); db.execute("UPDATE transfers SET to_subject=? WHERE project_id=? AND to_subject=?",(value,pid,old['value'])); db.execute("UPDATE estimate_rules SET subject=? WHERE project_id=? AND subject=?",(value,pid,old['value']))
                 elif kind=='source':
-                    if old['value']!=value and db.execute("SELECT 1 FROM project_options WHERE project_id=? AND kind='source' AND value=? AND id<>?",(pid,value,int(v['id']))).fetchone():raise ValueError('此經費類別已存在，不能合併更名')
                     for table in ('budget_items','expenses','transfers'):
                         db.execute(f"UPDATE {table} SET source=? WHERE project_id=? AND source=?",(value,pid,old['value']))
                 else:
@@ -1177,19 +1195,11 @@ def apply_action(a):
                 seen.add(value); clean.append((pid,kind,value))
             if not clean: raise ValueError('請輸入至少一個選項名稱')
             db.executemany("INSERT INTO project_options(project_id,kind,value) VALUES(?,?,?)",clean); return {'ok':True,'count':len(clean)}
-        if op=='reference_delete':
-            row=db.execute("SELECT project_id FROM project_options WHERE id=?",(int(a['id']),)).fetchone()
-            if not row:raise ValueError('找不到選項')
-            delete_with_impact(db,row['project_id'],'option',[int(a['id'])]);return {'ok':True}
         if op=='reference_bulk_delete':
             ids=list(dict.fromkeys(int(x) for x in a.get('ids',[])))
             if not ids:raise ValueError('請先勾選選項資料')
             pid=int(a['project_id']);require_project(db,pid);delete_with_impact(db,pid,'option',ids)
             return {'ok':True,'count':len(ids)}
-        if op=='application_save':
-            raise ValueError('流用科目變更由經費流用資料即時計算，無需另存申請 JSON')
-        if op=='application_delete':
-            raise ValueError('流用科目變更是查詢報表，沒有獨立資料可刪除')
         if op=='import_budget':
             pid=int(a['project_id']); require_project(db,pid); rows=a.get('rows',[]); names=a.get('filenames',[])
             if not rows: raise ValueError('沒有可匯入的預算資料')
@@ -1202,14 +1212,14 @@ def apply_action(a):
                 if not owner or not subject: raise ValueError(f'第 {i} 列缺少單位或科目')
                 for kind,value in (('source',source),('owner',owner),('subject',subject),('category',category)):
                     if value and not db.execute("SELECT 1 FROM project_options WHERE project_id=? AND kind=? AND value=?",(pid,kind,value)).fetchone(): new_options[kind].add(value)
-                initial=round_amount(r.get('initial'))
+                initial=input_amount(r.get('initial'),f'第 {i} 列初始預算')
                 if initial<0:raise ValueError(f'第 {i} 列初始預算不可小於 0')
                 key=(source,owner,subject,category)
                 if key in seen: raise ValueError(f'匯入檔案內有重複項目：{source}/{owner}/{subject}/{category}')
                 seen.add(key); clean.append((pid,source,owner,subject,category,initial))
             if a.get('mode')=='replace':
                 used=db.execute("SELECT (SELECT COUNT(*) FROM expenses WHERE project_id=?)+(SELECT COUNT(*) FROM transfers WHERE project_id=?)",(pid,pid)).fetchone()[0]
-                if used: raise ValueError('本計畫已有核銷或流用紀錄，不能取代預算；請改用新增／逐筆修改')
+                if used: raise ValueError('本專案已有核銷或流用紀錄，不能取代預算；請改用新增／逐筆修改')
                 candidate={}
                 for x in clean:candidate[x[1]]=candidate.get(x[1],0)+x[5]
                 check_source_caps(db,pid,candidate)
@@ -1217,7 +1227,7 @@ def apply_action(a):
             else:
                 existing=db.execute("SELECT source,owner,subject,category FROM budget_items WHERE project_id=?",(pid,)).fetchall(); ex={(r['source'],r['owner'],r['subject'],r['category']) for r in existing}
                 dup=[f'{x[1]}/{x[2]}/{x[3]}/{x[4]}' for x in clean if (x[1],x[2],x[3],x[4]) in ex]
-                if dup: raise ValueError('資料庫已存在相同預算項目：'+', '.join(dup[:8])+'。可選擇「取代本計畫預算」重新匯入。')
+                if dup: raise ValueError('資料庫已存在相同預算項目：'+', '.join(dup[:8])+'。可選擇「取代本專案預算」重新匯入。')
                 candidate={r['source']:round_amount(r['total']) for r in db.execute("SELECT source,SUM(initial) total FROM budget_items WHERE project_id=? GROUP BY source",(pid,))}
                 for x in clean:candidate[x[1]]=candidate.get(x[1],0)+x[5]
                 check_source_caps(db,pid,candidate)
@@ -1246,7 +1256,7 @@ def apply_action(a):
             source_spent={r['source']:round_amount(r['total']) for r in db.execute("SELECT source,SUM(amount) total FROM expenses WHERE project_id=? AND voided=0 GROUP BY source",(pid,))}
             source_limits={r['source']:round_amount(r['total']) for r in db.execute("SELECT source,SUM(initial) total FROM budget_items WHERE project_id=? GROUP BY source",(pid,))}
             for i,r in enumerate(rows,1):
-                source=(r.get('source') or '').strip(); owner=(r.get('owner') or '').strip(); subject=(r.get('subject') or '').strip(); category=(r.get('category') or '').strip(); total=round_amount(r.get('amount'))
+                source=(r.get('source') or '').strip(); owner=(r.get('owner') or '').strip(); subject=(r.get('subject') or '').strip(); category=(r.get('category') or '').strip(); total=input_amount(r.get('amount'),f'第 {i} 列核銷金額')
                 if not db.execute("SELECT 1 FROM project_options WHERE project_id=? AND kind='source' AND value=?",(pid,source)).fetchone() or not owner or not subject:raise ValueError(f'第 {i} 列需填妥有效的經費類別、單位及科目')
                 require_project_option(db,pid,'owner',owner,f'第 {i} 列單位'); require_project_option(db,pid,'subject',subject,f'第 {i} 列預算科目')
                 if total<0:raise ValueError(f'第 {i} 列核銷金額不可小於 0')
@@ -1261,10 +1271,10 @@ def apply_action(a):
                     created_budget_count+=1
                 voucher=parse_date(r.get('voucher_date'),'憑證日期');submitted=parse_date(r.get('submitted_date'),'登錄日期');description=str(r.get('batch_description') or '').strip()
                 validate_expense_dates(project,submitted,voucher,f'第 {i} 列')
-                payees=[{'name':validate_payee_name(x.get('name')), 'amount':round_amount(x.get('amount'))} for x in (r.get('payees') or [])]
+                payees=[{'name':validate_payee_name(x.get('name')), 'amount':input_amount(x.get('amount'),f'第 {i} 列付款分配金額')} for x in (r.get('payees') or [])]
                 if any(x['amount']<0 for x in payees):raise ValueError(f'第 {i} 列付款分配金額不可小於 0')
-                if payees and sum(x['amount'] for x in payees)!=total:raise ValueError(f'第 {i} 列付款分配合計必須等於核銷總額')
-                if all_spent+total>plan_limit:raise ValueError(f'第 {i} 列會超過全計畫核銷上限')
+                if payees and sum(x['amount'] for x in payees)!=total:raise ValueError(f'第 {i} 列付款分配合計必須等於核銷金額')
+                if all_spent+total>plan_limit:raise ValueError(f'第 {i} 列會超過全專案核銷上限')
                 if source_spent.get(source,0)+total>source_limits.get(source,0):raise ValueError(f'第 {i} 列會超過「{source}」類別的預算上限')
                 if owner_spent.get(owner,0)+total>owner_limits.get(owner,0):raise ValueError(f'第 {i} 列會超過單位「{owner}」核銷上限')
                 if item_room.get(item['id'],0)<0 or total>max(0,item_room.get(item['id'],0)):
@@ -1283,14 +1293,17 @@ def apply_action(a):
         if op=='import_transfers':
             pid=int(a['project_id']);require_project(db,pid);rows=a.get('rows',[])
             if not rows:raise ValueError('沒有可匯入的流用紀錄')
+            allowed_target_pairs={(x['source'],x['category'],x['subject']) for x in totals(db,pid)}
+            created_budget_count=0
             required=('date','source','from_owner','from_subject','from_category','to_owner','to_subject','to_category','amount')
             option_kinds={'source':'source','from_owner':'owner','to_owner':'owner','from_subject':'subject','to_subject':'subject','from_category':'category','to_category':'category'}
             for i,r in enumerate(rows,1):
                 if not all(str(r.get(k,'')).strip() for k in required):raise ValueError(f'第 {i} 列有必填欄位空白；本批資料未匯入')
-                date=validate_transfer_date(require_project(db,pid),r['date']);amount=round_amount(r['amount'])
+                date=validate_transfer_date(require_project(db,pid),r['date']);amount=input_amount(r['amount'],f'第 {i} 列流用金額')
                 if amount<=0:raise ValueError(f'第 {i} 列金額必須大於 0；本批資料未匯入')
                 for key,kind in option_kinds.items():require_project_option(db,pid,kind,r[key],f'第 {i} 列選項')
                 if r['from_category']!=r['to_category']:raise ValueError(f'第 {i} 列流出與流入經費屬性不同；本批資料未匯入')
+                if (r['source'],r['to_category'],r['to_subject']) not in allowed_target_pairs:raise ValueError(f'第 {i} 列在本專案預算明細中找不到相同經費類別、經費屬性及預算科目的配對；請先建立預算明細，本批資料未匯入')
                 if r['from_owner']==r['to_owner'] and r['from_subject']==r['to_subject'] and r['from_category']==r['to_category']:raise ValueError(f'第 {i} 列流出與流入不可為同一預算項目；本批資料未匯入')
                 out=next((x for x in totals(db,pid) if x['source']==r['source'] and x['owner']==r['from_owner'] and x['subject']==r['from_subject'] and x['category']==r['from_category']),None)
                 if not out:raise ValueError(f'第 {i} 列找不到流出預算項目；本批資料未匯入')
@@ -1300,13 +1313,49 @@ def apply_action(a):
                     if amount>owner_left:raise ValueError(f'第 {i} 列會超過「{r["from_owner"]}」單位可控經費餘額；本批資料未匯入')
                 target=db.execute("SELECT id FROM budget_items WHERE project_id=? AND source=? AND owner=? AND subject=? AND category=?",(pid,r['source'],r['to_owner'],r['to_subject'],r['to_category'])).fetchone()
                 if not target:
+                    if not a.get('confirm_missing_budget_items'):raise ValueError('流入單位尚無相符的預算明細，請重新匯入並確認建立 0 元預算明細。')
                     db.execute("INSERT INTO budget_items(project_id,source,owner,subject,category,initial) VALUES(?,?,?,?,?,0)",(pid,r['source'],r['to_owner'],r['to_subject'],r['to_category']))
+                    created_budget_count+=1
                     target=db.execute("SELECT id FROM budget_items WHERE project_id=? AND source=? AND owner=? AND subject=? AND category=?",(pid,r['source'],r['to_owner'],r['to_subject'],r['to_category'])).fetchone()
                 db.execute("INSERT INTO transfers(project_id,date,source,from_owner,from_subject,from_category,to_owner,to_subject,to_category,from_budget_item_id,to_budget_item_id,amount,note) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)",(pid,date,r['source'],r['from_owner'],r['from_subject'],r['from_category'],r['to_owner'],r['to_subject'],r['to_category'],out['id'],target['id'],amount,str(r.get('note') or '').strip()))
             validate_ledger_caps(db,pid)
             validate_reserved_funding(db,pid)
-            return {'ok':True,'count':len(rows)}
+            return {'ok':True,'count':len(rows),'created_budget_count':created_budget_count}
     raise ValueError('不支援的操作')
+
+
+BUDGET_IMPORT_HEADERS={'單位':'owner','經費類別':'source','經費屬性':'category','預算科目':'subject','初始預算':'initial'}
+EXPENSE_IMPORT_HEADERS={'批次說明':'batch_description','登錄日期':'submitted_date','憑證日期':'voucher_date','經費類別':'source','單位':'owner','預算科目':'subject','經費屬性':'category','核銷金額':'amount','付款對象':'payee_names','分配金額':'payee_amounts','備註':'note'}
+TRANSFER_IMPORT_HEADERS={'流用日期':'date','經費類別':'source','流出單位':'from_owner','流出經費屬性':'from_category','流出預算科目':'from_subject','流入單位':'to_owner','流入經費屬性':'to_category','流入預算科目':'to_subject','流用金額':'amount','備註':'note'}
+
+
+class ParsedUpload(list):
+    def __init__(self, headers=None, rows=None, row_cells=None):
+        super().__init__(rows or [])
+        self.headers=headers or []
+        self.row_cells=row_cells or []
+
+
+def validate_import_headers(parsed, file_name, mapping):
+    headers=[str(value or '').strip() for value in parsed.headers]
+    errors=[]
+    seen_headers=set()
+    for index,header in enumerate(headers):
+        if not header:
+            for row_index,cells in enumerate(parsed.row_cells,2):
+                if index<len(cells) and str(cells[index] or '').strip():
+                    errors.append(f'{file_name} 第 {row_index} 列：第 {index+1} 欄缺少欄名')
+            continue
+        if header in seen_headers:
+            errors.append(f'{file_name}：欄名「{header}」重複出現，請只保留一欄')
+            continue
+        seen_headers.add(header)
+        if header not in mapping:
+            available='、'.join(mapping.keys())
+            errors.append(f'{file_name}：無法識別欄位「{header}」，可用欄名：{available}')
+    for row_index,cells in enumerate(parsed.row_cells,2):
+        if any(str(value or '').strip() for value in cells[len(headers):]):errors.append(f'{file_name} 第 {row_index} 列：欄位數多於表頭')
+    return errors
 
 
 def parse_upload(file_name, raw):
@@ -1316,8 +1365,12 @@ def parse_upload(file_name, raw):
         except UnicodeDecodeError:
             try:text=raw.decode('cp950')
             except UnicodeDecodeError:raise ValueError(f'{file_name}：無法辨識文字編碼，請另存為 UTF-8 或 Big5 CSV') from None
-        rows=list(csv.DictReader(io.StringIO(text)))
-        return rows
+        matrix=list(csv.reader(io.StringIO(text)))
+        if not matrix:return ParsedUpload()
+        headers=matrix[0]
+        row_cells=matrix[1:]
+        rows=[{header:cells[index] for index,header in enumerate(headers) if str(header or '').strip() and index<len(cells)} for cells in row_cells]
+        return ParsedUpload(headers,rows,row_cells)
     if ext not in ('.xlsx','.xlsm'): raise ValueError(f'{file_name}：僅支援 .xlsx、.xlsm 或 .csv')
     try: z=zipfile.ZipFile(io.BytesIO(raw))
     except Exception: raise ValueError(f'{file_name}：無法讀取 Excel 檔')
@@ -1329,7 +1382,7 @@ def parse_upload(file_name, raw):
     wb=ET.fromstring(z.read('xl/workbook.xml')); rel=ET.fromstring(z.read('xl/_rels/workbook.xml.rels'))
     relmap={x.attrib['Id']:x.attrib['Target'] for x in rel}
     sheet=wb.find('a:sheets/a:sheet',ns)
-    if sheet is None: return []
+    if sheet is None: return ParsedUpload()
     target=relmap[sheet.attrib['{'+ns['r']+'}id']].lstrip('/')
     path=target if target.startswith('xl/') else 'xl/'+target
     root=ET.fromstring(z.read(path)); matrix=[]
@@ -1345,7 +1398,9 @@ def parse_upload(file_name, raw):
         if cells: matrix.append(cells)
     if not matrix:return []
     headers=[str(matrix[0].get(i,'')).strip() for i in range(max(matrix[0])+1)]
-    return [{headers[i]:row.get(i,'') for i in range(len(headers)) if headers[i]} for row in matrix[1:]]
+    row_cells=[[row.get(i,'') for i in range(max(len(headers),max(row)+1))] for row in matrix[1:]]
+    rows=[{headers[i]:row.get(i,'') for i in range(len(headers)) if headers[i] and i in row} for row in matrix[1:]]
+    return ParsedUpload(headers,rows,row_cells)
 
 
 def is_blank_import_row(row):
@@ -1361,7 +1416,7 @@ def is_blank_import_row(row):
     return not any(has_content(value) for value in row.values())
 
 
-MONEY_EXPORT_HEADERS={'初始預算','流入','流出','流用後預算','核銷金額','核銷總額','分配金額','流用金額','已核銷','待核銷','可用餘額','金額','計畫經費總額','預算','預算總額','已執行','預算餘額'}
+MONEY_EXPORT_HEADERS={'初始預算','流入','流出','流用後預算','核銷金額','分配金額','流用金額','已核銷','待核銷','可用餘額','專案經費總額','變更前預算','變更後預算','增減'}
 
 def is_money_header(header):
     return str(header).strip() in MONEY_EXPORT_HEADERS
@@ -1406,6 +1461,7 @@ def make_xlsx_sheets(sheets):
                     cells.append(f'<c r="{ref}"{style_attr}><v>{val}</v></c>')
                 else:
                     text=format_amount_list(val) if headers[ci-1]=='分配金額' and isinstance(val,str) else str(val if val is not None else '')
+                    text=re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f\ufffe\uffff]','',text)
                     style_attr=' s="5"' if pending_row and ci-1 in money_columns else (' s="4"' if pending_row else (' s="2"' if ci-1 in money_columns else ''))
                     cells.append(f'<c r="{ref}"{style_attr} t="inlineStr"><is><t>{escape(text)}</t></is></c>')
             xml_rows.append(f'<row r="{ri}">{"".join(cells)}</row>')
@@ -1426,7 +1482,8 @@ def make_xlsx_sheets(sheets):
 
 
 def build_export_sheets(data, project_id, selected_owners, include_overall):
-    project=next(x for x in data['projects'] if x['id']==project_id)
+    project=next((x for x in data['projects'] if x['id']==project_id),None)
+    if not project:raise ValueError('找不到指定的專案，請重新選擇專案後匯出')
     budgets=[x for x in data['budgets'] if x['project_id']==project_id]
     expenses=[x for x in data['expenses'] if x['project_id']==project_id]
     transfers=[x for x in data['transfers'] if x['project_id']==project_id and x.get('status','executed')=='executed']
@@ -1442,28 +1499,38 @@ def build_export_sheets(data, project_id, selected_owners, include_overall):
     if include_overall:
         grouped={}
         for x in budgets:
-            k=(x['source'],x['subject'],x.get('category','') or '未分類');g=grouped.setdefault(k,{'initial':0,'incoming':0,'outgoing':0,'budget':0,'spent':0,'balance':0})
-            for col in g:g[col]+=round_amount(x.get(col))
-        overall_rows=[[src,subject,category,g['initial'],g['incoming'],g['outgoing'],g['budget'],g['spent'],g['balance'],execution_percent(g['spent'],g['budget'])] for (src,subject,category),g in sorted(grouped.items())]
-        sums={k:sum(g[k] for g in grouped.values()) for k in ('initial','incoming','outgoing','budget','spent','balance')}
-        overall_rows.append(['計畫合計','','',sums['initial'],sums['incoming'],sums['outgoing'],sums['budget'],sums['spent'],sums['balance'],execution_percent(sums['spent'],sums['budget'])])
-        add('計畫經費總表',['經費類別','經費科目','經費屬性','初始預算','流入','流出','流用後預算','核銷金額','可用餘額','執行率（%）'],overall_rows)
-        add('核銷彙總',['狀態','核銷日期','憑證日期','經費類別','單位','經費屬性','經費科目','核銷金額','付款對象','分配金額','備註'],[[expense_state(x),date_text(x.get('submitted_date')),date_text(x.get('voucher_date')),x['source'],x['owner'],x.get('category',''),x['subject'],round_amount(x['amount']),payee_names(x),payee_amounts(x),x.get('note','')] for x in sorted(expenses,key=expense_sort_key)])
-        add('流用紀錄',['流用日期','經費類別','流出單位','流出經費屬性','流出經費科目','流入單位','流入經費屬性','流入經費科目','流用金額','備註'],[[date_text(x['date']),x['source'],x['from_owner'],x.get('from_category',''),x['from_subject'],x['to_owner'],x.get('to_category',''),x['to_subject'],round_amount(x['amount']),x.get('note','')] for x in transfers])
+            k=(x['source'],x.get('category','') or '未分類',x['subject']);g=grouped.setdefault(k,{'initial':0,'incoming':0,'outgoing':0,'budget':0,'confirmed':0,'pending':0})
+            for col in ('initial','incoming','outgoing','budget'):g[col]+=round_amount(x.get(col))
+        for x in expenses:
+            if x['voided']:continue
+            k=(x['source'],x.get('category','') or '未分類',x['subject']);g=grouped.setdefault(k,{'initial':0,'incoming':0,'outgoing':0,'budget':0,'confirmed':0,'pending':0})
+            g['confirmed' if x.get('submitted_date') else 'pending']+=round_amount(x['amount'])
+        overall_rows=[[src,category,subject,g['initial'],g['incoming'],g['outgoing'],g['budget'],g['confirmed'],g['pending'],g['budget']-g['confirmed']-g['pending'],execution_percent(g['confirmed']+g['pending'],g['budget'])] for (src,category,subject),g in sorted(grouped.items())]
+        sums={k:sum(g[k] for g in grouped.values()) for k in ('initial','incoming','outgoing','budget','confirmed','pending')}
+        overall_rows.append(['專案合計','','',sums['initial'],sums['incoming'],sums['outgoing'],sums['budget'],sums['confirmed'],sums['pending'],sums['budget']-sums['confirmed']-sums['pending'],execution_percent(sums['confirmed']+sums['pending'],sums['budget'])])
+        add('專案經費總表',['經費類別','經費屬性','預算科目','初始預算','流入','流出','流用後預算','已核銷','待核銷','可用餘額','執行率（含待核銷）（%）'],overall_rows)
+        add('核銷彙總',['狀態','登錄日期','憑證日期','經費類別','單位','經費屬性','預算科目','核銷金額','付款對象','分配金額','備註'],[[expense_state(x),date_text(x.get('submitted_date')),date_text(x.get('voucher_date')),x['source'],x['owner'],x.get('category',''),x['subject'],round_amount(x['amount']),payee_names(x),payee_amounts(x),x.get('note','')] for x in sorted(expenses,key=expense_sort_key)])
+        add('流用紀錄',['流用日期','經費類別','流出單位','流出經費屬性','流出預算科目','流入單位','流入經費屬性','流入預算科目','流用金額','備註'],[[date_text(x['date']),x['source'],x['from_owner'],x.get('from_category',''),x['from_subject'],x['to_owner'],x.get('to_category',''),x['to_subject'],round_amount(x['amount']),x.get('note','')] for x in transfers])
     for owner in selected_owners:
         owner_b=[x for x in budgets if x['owner']==owner]
         owner_group={}
         for x in owner_b:
-            g=owner_group.setdefault(x['subject'],{'budget':0,'incoming':0,'outgoing':0,'spent':0,'balance':0})
-            for col in g:g[col]+=round_amount(x.get(col))
-        owner_rows=[[s,g['budget'],g['incoming'],g['outgoing'],g['spent'],g['balance'],execution_percent(g['spent'],g['budget'])] for s,g in sorted(owner_group.items())]
-        owner_sums={k:sum(g[k] for g in owner_group.values()) for k in ('budget','incoming','outgoing','spent','balance')}
-        owner_rows.append(['計畫合計',owner_sums['budget'],owner_sums['incoming'],owner_sums['outgoing'],owner_sums['spent'],owner_sums['balance'],execution_percent(owner_sums['spent'],owner_sums['budget'])])
-        add(f'{owner[:20]}_經費',['經費科目','流用後預算','流入','流出','已核銷','可用餘額','執行率（%）'],owner_rows)
+            key=(x['source'],x.get('category','') or '未分類',x['subject'])
+            g=owner_group.setdefault(key,{'budget':0,'incoming':0,'outgoing':0,'confirmed':0,'pending':0})
+            for col in ('budget','incoming','outgoing'):g[col]+=round_amount(x.get(col))
+        for x in expenses:
+            if x['voided'] or x['owner']!=owner:continue
+            key=(x['source'],x.get('category','') or '未分類',x['subject'])
+            g=owner_group.setdefault(key,{'budget':0,'incoming':0,'outgoing':0,'confirmed':0,'pending':0})
+            g['confirmed' if x.get('submitted_date') else 'pending']+=round_amount(x['amount'])
+        owner_rows=[[source,category,subject,g['budget'],g['incoming'],g['outgoing'],g['confirmed'],g['pending'],g['budget']-g['confirmed']-g['pending'],execution_percent(g['confirmed']+g['pending'],g['budget'])] for (source,category,subject),g in sorted(owner_group.items())]
+        owner_sums={k:sum(g[k] for g in owner_group.values()) for k in ('budget','incoming','outgoing','confirmed','pending')}
+        owner_rows.append(['單位合計','','',owner_sums['budget'],owner_sums['incoming'],owner_sums['outgoing'],owner_sums['confirmed'],owner_sums['pending'],owner_sums['budget']-owner_sums['confirmed']-owner_sums['pending'],execution_percent(owner_sums['confirmed']+owner_sums['pending'],owner_sums['budget'])])
+        add(f'{owner[:20]}_經費',['經費類別','經費屬性','預算科目','流用後預算','流入','流出','已核銷','待核銷','可用餘額','執行率（含待核銷）（%）'],owner_rows)
         owner_e=sorted((x for x in expenses if x['owner']==owner),key=expense_sort_key)
-        add(f'{owner[:20]}_核銷',['狀態','核銷日期','憑證日期','經費屬性','經費科目','核銷金額','付款對象','分配金額','備註'],[[expense_state(x),date_text(x.get('submitted_date')),date_text(x.get('voucher_date')),x.get('category',''),x['subject'],round_amount(x['amount']),payee_names(x),payee_amounts(x),x.get('note','')] for x in owner_e])
+        add(f'{owner[:20]}_核銷',['狀態','登錄日期','憑證日期','經費屬性','預算科目','核銷金額','付款對象','分配金額','備註'],[[expense_state(x),date_text(x.get('submitted_date')),date_text(x.get('voucher_date')),x.get('category',''),x['subject'],round_amount(x['amount']),payee_names(x),payee_amounts(x),x.get('note','')] for x in owner_e])
         owner_t=[x for x in transfers if x['from_owner']==owner or x['to_owner']==owner]
-        add(f'{owner[:20]}_流用紀錄',['流用日期','流出單位','流出經費屬性','流出經費科目','流入單位','流入經費屬性','流入經費科目','流用金額','備註'],[[date_text(x['date']),x['from_owner'],x.get('from_category',''),x['from_subject'],x['to_owner'],x.get('to_category',''),x['to_subject'],round_amount(x['amount']),x.get('note','')] for x in owner_t])
+        add(f'{owner[:20]}_流用紀錄',['流用日期','流出單位','流出經費屬性','流出預算科目','流入單位','流入經費屬性','流入預算科目','流用金額','備註'],[[date_text(x['date']),x['from_owner'],x.get('from_category',''),x['from_subject'],x['to_owner'],x.get('to_category',''),x['to_subject'],round_amount(x['amount']),x.get('note','')] for x in owner_t])
     return project,result
 
 
@@ -1493,7 +1560,7 @@ def make_pdf_sheets(sheets,orientation='landscape'):
         cell_style=ParagraphStyle('BudgetCell',fontName=font_name,fontSize=8,leading=11,wordWrap='CJK')
         head_style=ParagraphStyle('BudgetHead',parent=cell_style,fontSize=8.5,leading=12,textColor=colors.white,alignment=TA_CENTER)
         table_data=[[Paragraph(escape(str(x)),head_style) for x in headers]]
-        numeric_headers=MONEY_EXPORT_HEADERS|{'執行率（%）'}
+        numeric_headers=MONEY_EXPORT_HEADERS|{'執行率（含待核銷）（%）','真實執行率','預估執行率'}
         for row in rows:
             cells=[]
             for i,value in enumerate(row):
@@ -1546,7 +1613,7 @@ def email_filename(value):
 
 def email_report_data(project_id,data=None):
     data=data or bootstrap();project=next((p for p in data['projects'] if p['id']==project_id),None)
-    if not project:raise ValueError('找不到計畫')
+    if not project:raise ValueError('找不到專案')
     budgets=[x for x in data['budgets'] if x['project_id']==project_id]
     expenses=[x for x in data['expenses'] if x['project_id']==project_id]
     batches={x['id']:x for x in data['batches'] if x['project_id']==project_id}
@@ -1578,8 +1645,9 @@ def email_report_data(project_id,data=None):
     # Match the project total used by the shared export summary: sum the
     # allocated, flow-adjusted budget rows rather than the project ceiling.
     total_budget=sum(round_amount(x.get('budget')) for x in budgets)
+    project_budget=round_amount(project.get('total_budget') or 0)
     confirmed=sum(x['confirmed'] for x in unit_reports);pending=sum(x['pending'] for x in unit_reports)
-    return {'project':project,'report_as_of':date.today().isoformat(),'total_budget':total_budget,'confirmed':confirmed,'pending':pending,'available':total_budget-confirmed-pending,'rate':execution_ratio(confirmed,total_budget),'units':unit_reports}
+    return {'project':project,'report_as_of':date.today().isoformat(),'total_budget':total_budget,'project_budget':project_budget,'confirmed':confirmed,'pending':pending,'available':total_budget-confirmed-pending,'rate':execution_ratio(confirmed,project_budget),'units':unit_reports}
 
 
 def load_monthly_template():
@@ -1592,13 +1660,13 @@ def email_summary_html(report, included_units=None, show_unit_rows=False, unit_o
     p=report['project'];unit_rows=''
     if unit_only:
         u=next(x for x in report['units'] if x['name']==unit_only)
-        unit_rows=f'<table><tbody><tr><th>單位</th><td>{escape(u["name"])}</td></tr><tr><th>流用後預算</th><td>{u["budget"]:,}</td></tr><tr><th>已核銷</th><td>{u["confirmed"]:,}</td></tr><tr><th>待核銷</th><td>{u["pending"]:,}</td></tr><tr><th>可用餘額</th><td>{u["available"]:,}</td></tr><tr><th>執行率（依已核銷）</th><td>{execution_label(u["rate"])}</td></tr></tbody></table>'
-        return f'<p>{escape(p.get("name", ""))}（{escape(p.get("code", ""))}）</p><p>資料範圍：計畫開始日至 {report["report_as_of"].replace("-","/")}；以下只包含你的單位資料。明細依核銷日期由舊至新排列。</p>{unit_rows}'
+        unit_rows=f'<table><tbody><tr><th>單位</th><td>{escape(u["name"])}</td></tr><tr><th>流用後預算</th><td>{u["budget"]:,}</td></tr><tr><th>已核銷</th><td>{u["confirmed"]:,}</td></tr><tr><th>待核銷</th><td>{u["pending"]:,}</td></tr><tr><th>預估核銷合計</th><td>{u["confirmed"]+u["pending"]:,}</td></tr><tr><th>可用餘額</th><td>{u["available"]:,}</td></tr></tbody></table>'
+        return f'<p>{escape(p.get("name", ""))}（{escape(p.get("code", ""))}）</p><p>資料範圍：專案開始日至 {report["report_as_of"].replace("-","/")}；以下只包含你的單位資料。附件明細先列待核銷紀錄，其餘依登錄日期由舊至新排列。</p>{unit_rows}'
     if show_unit_rows:
         chosen=report['units'] if included_units is None else [u for u in report['units'] if u['name'] in included_units]
         unit_rows='<h3>單位摘要</h3><table><thead><tr><th>單位</th><th>流用後預算</th><th>已核銷</th><th>待核銷</th><th>可用餘額</th></tr></thead><tbody>'+''.join(f'<tr><td>{escape(u["name"])}</td><td>{u["budget"]:,}</td><td>{u["confirmed"]:,}</td><td>{u["pending"]:,}</td><td>{u["available"]:,}</td></tr>' for u in chosen)+'</tbody></table>'
-    overall=f'<table><tbody><tr><th>計畫經費總額</th><td>{report["total_budget"]:,}</td></tr><tr><th>已核銷</th><td>{report["confirmed"]:,}</td></tr><tr><th>待核銷</th><td>{report["pending"]:,}</td></tr><tr><th>可用餘額</th><td>{report["available"]:,}</td></tr><tr><th>執行率（依已核銷）</th><td>{execution_label(report["rate"])}</td></tr></tbody></table>'
-    return f'<p>{escape(p.get("name", ""))}（{escape(p.get("code", ""))}）</p><p>資料範圍：計畫開始日至 {report["report_as_of"].replace("-","/")}；明細依核銷日期由舊至新排列。金額為新臺幣整數元。</p>{overall}{unit_rows}'
+    overall=f'<table><tbody><tr><th>專案經費總額</th><td>{report["project_budget"]:,}</td></tr><tr><th>專案預算合計</th><td>{report["total_budget"]:,}</td></tr><tr><th>已核銷</th><td>{report["confirmed"]:,}</td></tr><tr><th>待核銷</th><td>{report["pending"]:,}</td></tr><tr><th>預估核銷合計</th><td>{report["confirmed"]+report["pending"]:,}</td></tr><tr><th>可用餘額</th><td>{report["available"]:,}</td></tr><tr><th>真實執行率</th><td>{execution_label(report["rate"])}</td></tr></tbody></table>'
+    return f'<p>{escape(p.get("name", ""))}（{escape(p.get("code", ""))}）</p><p>資料範圍：專案開始日至 {report["report_as_of"].replace("-","/")}；附件明細先列待核銷紀錄，其餘依登錄日期由舊至新排列。金額為新臺幣整數元。</p>{overall}{unit_rows}'
 
 
 def render_monthly_email(report,title,body_content):
@@ -1621,7 +1689,7 @@ def email_delivery_plan(db,report,project_id,recipient_ids=None,manager_scopes=N
         unit=next((u for u in report['units'] if u['name']==r['unit_name']),None)
         if unit is None:raise ValueError(f'收件人「{r["name"]}」所屬單位尚無預算資料，無法產生附件')
         body=email_summary_html(report,[unit['name']],False,unit['name'])
-        title=f'{report["project"].get("name", "計畫")}｜{unit["name"]} 經費累計報告'
+        title=f'{report["project"].get("name", "專案")}｜{unit["name"]} 經費累計報告'
         messages.append({'recipient_id':r['id'],'recipient_type':'unit','recipient_name':r['name'],'email':r['email'],'report_scope':f'單位：{unit["name"]}','subject':title,'html':render_monthly_email(report,title,body),'export_owners':[unit['name']],'include_overall':False})
     if manager_scopes is None:manager_scopes={}
     if not isinstance(manager_scopes,dict):raise ValueError('主管資料範圍格式錯誤，請重新選擇')
@@ -1642,13 +1710,13 @@ def email_delivery_plan(db,report,project_id,recipient_ids=None,manager_scopes=N
             if not unit_ids:raise ValueError(f'請至少選擇一個要寄送給主管「{r["name"]}」的單位')
             placeholders=','.join('?' for _ in unit_ids)
             linked=[dict(x) for x in db.execute(f'SELECT id,name FROM units WHERE project_id=? AND id IN ({placeholders}) ORDER BY name',(project_id,*unit_ids))]
-            if {x['id'] for x in linked}!=set(unit_ids):raise ValueError(f'主管「{r["name"]}」指定的單位必須屬於本計畫')
+            if {x['id'] for x in linked}!=set(unit_ids):raise ValueError(f'主管「{r["name"]}」指定的單位必須屬於本專案')
             chosen=[x['name'] for x in linked]
         if mode in ('self','selected') and not set(chosen).issubset({u['name'] for u in report['units']}):
             raise ValueError(f'主管「{r["name"]}」所屬或選取的單位尚無預算資料，無法產生明細附件')
         include_overall=mode in ('summary','selected','all')
         body=email_summary_html(report,unit_only=r['unit_name']) if mode=='self' else email_summary_html(report,chosen,True if chosen else False)
-        title=f'{report["project"].get("name", "計畫")}｜計畫經費摘要'
+        title=f'{report["project"].get("name", "專案")}｜專案經費摘要'
         scope='經費摘要' if mode=='summary' else ('本單位：'+r['unit_name'] if mode=='self' else ('經費摘要＋全部單位' if mode=='all' else '經費摘要＋指定單位：'+ '、'.join(chosen)))
         messages.append({'recipient_id':r['id'],'recipient_type':'manager','recipient_name':r['name'],'email':r['email'],'report_scope':scope,'subject':title,'html':render_monthly_email(report,title,body),'export_owners':chosen,'include_overall':include_overall})
     seen={};duplicates=[]
@@ -1672,7 +1740,7 @@ def email_smtp_config():
 
 def send_email(config,to_address,subject,html_body,attachments=None):
     subject=str(subject).replace('\r',' ').replace('\n',' ').strip()
-    msg=EmailMessage();msg['Subject']=subject;msg['From']=f"{config.get('sender_name') or config['sender_email']} <{config['sender_email']}>";msg['To']=to_address
+    msg=EmailMessage();msg['Subject']=subject;msg['From']=formataddr((config.get('sender_name') or '',config['sender_email']));msg['To']=to_address
     msg.set_content('此信件為 HTML 格式，請使用支援 HTML 的郵件軟體檢視。')
     msg.add_alternative(html_body,subtype='html')
     for filename,content,maintype,subtype in (attachments or []):
@@ -1714,7 +1782,7 @@ def send_email(config,to_address,subject,html_body,attachments=None):
 
 
 def email_report_attachments(project,sheets,formats):
-    code=project.get('code') or '計畫';result=[]
+    code=project.get('code') or '專案';result=[]
     for fmt in formats:
         if fmt=='xlsx':
             filename=f'{code}_經費報表.xlsx';content=make_xlsx_sheets(sheets);maintype='application';subtype='vnd.openxmlformats-officedocument.spreadsheetml.sheet'
@@ -1787,6 +1855,8 @@ class Handler(BaseHTTPRequestHandler):
         for key,value in (extra or {}).items(): self.send_header(key,value)
         self.end_headers(); self.wfile.write(b)
     def do_GET(self):
+        if self.headers.get('Host','').lower() not in {f'{HOST}:{PORT}'.lower(),f'localhost:{PORT}'.lower()}:
+            self.send(403,json.dumps({'error':'請從本機系統頁面連線'},ensure_ascii=False));return
         path=urlparse(self.path).path
         if path=='/api/health':
             self.send(200,json.dumps({'ok':True},ensure_ascii=False));return
@@ -1802,24 +1872,28 @@ class Handler(BaseHTTPRequestHandler):
         elif path=='/api/template.csv':
             out=io.StringIO(); w=csv.writer(out); w.writerow(['單位','經費類別','經費屬性','預算科目','初始預算']); w.writerow(['王小明','補助款','業務費','講座鐘點費','10000']); self.send(200,'\ufeff'+out.getvalue(),'text/csv; charset=utf-8')
         elif path=='/api/expense-template.csv':
-            out=io.StringIO(); w=csv.writer(out); w.writerow(['登錄日期','憑證日期','經費類別','單位','經費屬性','預算科目','核銷總額','批次說明','付款對象','分配金額','備註']); w.writerow(['2026/02/28','2026/02/27','補助款','王小明','業務費','講座鐘點費','2000','A活動第一批','講師甲；講師乙','1200；800','A活動鐘點費']); w.writerow(['2026/02/28','2026/02/27','補助款','王小明','人事費','補充保費','42','A活動第一批','','','A活動補充保費']); w.writerow(['','2026/03/03','補助款','王小明','業務費','講座鐘點費','2000','','','','無批次資訊範例']); self.send(200,'\ufeff'+out.getvalue(),'text/csv; charset=utf-8')
+            out=io.StringIO(); w=csv.writer(out); w.writerow(['登錄日期','憑證日期','經費類別','單位','經費屬性','預算科目','核銷金額','批次說明','付款對象','分配金額','備註']); w.writerow(['2026/02/28','2026/02/27','補助款','王小明','業務費','講座鐘點費','2000','A活動第一批','講師甲；講師乙','1200；800','A活動鐘點費']); w.writerow(['2026/02/28','2026/02/27','補助款','王小明','人事費','補充保費','42','A活動第一批','','','A活動補充保費']); w.writerow(['','2026/03/03','補助款','王小明','業務費','講座鐘點費','2000','','','','無批次資訊範例']); self.send(200,'\ufeff'+out.getvalue(),'text/csv; charset=utf-8')
         elif path=='/api/transfer-template.csv':
-            out=io.StringIO();w=csv.writer(out);w.writerow(['流用日期','經費類別','流出單位','流出經費屬性','流出預算科目','流入單位','流入經費屬性','流入預算科目','金額','備註']);w.writerow(['2026/03/10','補助款','王小明','業務費','講座鐘點費','李小華','業務費','講座鐘點費','1000','範例流用']);self.send(200,'\ufeff'+out.getvalue(),'text/csv; charset=utf-8')
+            out=io.StringIO();w=csv.writer(out);w.writerow(['流用日期','經費類別','流出單位','流出經費屬性','流出預算科目','流入單位','流入經費屬性','流入預算科目','流用金額','備註']);w.writerow(['2026/03/10','補助款','王小明','業務費','講座鐘點費','李小華','業務費','講座鐘點費','1000','範例流用']);self.send(200,'\ufeff'+out.getvalue(),'text/csv; charset=utf-8')
         elif path=='/api/backup':
             self.send(200,DB_PATH.read_bytes(),'application/vnd.sqlite3')
         elif path=='/api/flow-report':
             from urllib.parse import parse_qs
-            q=parse_qs(urlparse(self.path).query); pid=int(q.get('project_id',['0'])[0]); start=q.get('date_from',[''])[0]; end=q.get('date_to',[start])[0]
+            q=parse_qs(urlparse(self.path).query); start=q.get('date_from',[''])[0]; end=q.get('date_to',[start])[0]
+            try:pid=int(q.get('project_id',['0'])[0])
+            except (TypeError,ValueError):self.send(400,json.dumps({'error':'專案編號格式不正確'},ensure_ascii=False));return
             try:
                 with connect() as db:
-                    require_project(db,pid); rows=flow_change_report(db,pid,start,end)
+                    require_project(db,pid)
+                    start=parse_date(start,'起始流用日期');end=parse_date(end,'結束流用日期')
+                    rows=flow_change_report(db,pid,start,end)
                 self.send(200,json.dumps({'date_from':start,'date_to':end,'rows':rows},ensure_ascii=False))
             except Exception as e:self.send(400,json.dumps({'error':display_error(e)},ensure_ascii=False))
         elif path=='/api/export-projects':
             from urllib.parse import parse_qs, quote
             q=parse_qs(urlparse(self.path).query);status=q.get('status',['all'])[0];fmt=q.get('format',['xlsx'])[0]
             try:
-                if status not in ('active','future','done','all'):raise ValueError('不支援的計畫狀態')
+                if status not in ('active','future','done','all'):raise ValueError('不支援的專案狀態')
                 if fmt not in ('xlsx','md','pdf'):raise ValueError('不支援的匯出格式')
                 data=bootstrap();today=date.today().isoformat();counts={'active':0,'future':0,'done':0}
                 def project_status(p):
@@ -1831,24 +1905,28 @@ class Handler(BaseHTTPRequestHandler):
                 projects=[p for p in projects if status=='all' or project_status(p)==status]
                 rank={'active':0,'future':1,'done':2}
                 projects.sort(key=lambda p:(rank[project_status(p)] if status=='all' else 0,p.get('end_date') or '9999-12-31',p.get('name') or ''))
-                headers=['計畫名稱','計畫編號','執行單位','執行起日','執行迄日','計畫經費總額','執行率','聯絡人','電話','Email'];rows=[]
+                headers=['專案名稱','專案編號','執行單位','執行起日','執行迄日','專案經費總額','真實執行率','預估執行率','聯絡人','電話','Email'];rows=[]
                 for p in projects:
                     denominator=round_amount(p.get('total_budget') or 0)
-                    spent=sum(round_amount(x['amount']) for x in data['expenses'] if x['project_id']==p['id'] and not x['voided'] and x.get('submitted_date'))
-                    rate=execution_percent(spent,denominator)
-                    rows.append([p.get('name',''),p.get('code',''),p.get('unit',''),(p.get('start_date') or '').replace('-','/'),(p.get('end_date') or '').replace('-','/'),denominator,rate,p.get('contact',''),p.get('phone',''),p.get('email','')])
+                    related=[x for x in data['expenses'] if x['project_id']==p['id'] and not x['voided']]
+                    confirmed=sum(round_amount(x['amount']) for x in related if x.get('submitted_date'))
+                    forecast=sum(round_amount(x['amount']) for x in related)
+                    real_rate=execution_percent(confirmed,denominator);forecast_rate=execution_percent(forecast,denominator)
+                    rows.append([p.get('name',''),p.get('code',''),p.get('unit',''),(p.get('start_date') or '').replace('-','/'),(p.get('end_date') or '').replace('-','/'),denominator,real_rate,forecast_rate,p.get('contact',''),p.get('phone',''),p.get('email','')])
                 title={'active':'執行中','future':'未執行','done':'已完成','all':'總覽'}[status]
-                sheets=[(f'計畫清單（{title}）',headers,rows)]
-                if fmt=='xlsx':content=make_xlsx_sheets(sheets);typ='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';filename=f'所有計畫_{title}.xlsx'
-                elif fmt=='md':content='\ufeff'+sheets_to_markdown({'name':'所有計畫','code':title},sheets);typ='text/markdown; charset=utf-8';filename=f'所有計畫_{title}.md'
-                else:content=make_pdf_sheets([(f'所有計畫 · {title}',headers,rows)],'landscape');typ='application/pdf';filename=f'所有計畫_{title}.pdf'
+                sheets=[(f'專案清單（{title}）',headers,rows)]
+                if fmt=='xlsx':content=make_xlsx_sheets(sheets);typ='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';filename=f'所有專案_{title}.xlsx'
+                elif fmt=='md':content='\ufeff'+sheets_to_markdown({'name':'所有專案','code':title},sheets);typ='text/markdown; charset=utf-8';filename=f'所有專案_{title}.md'
+                else:content=make_pdf_sheets([(f'所有專案 · {title}',headers,rows)],'landscape');typ='application/pdf';filename=f'所有專案_{title}.pdf'
                 self.send(200,content,typ,{'Content-Disposition':f"attachment; filename*=UTF-8''{quote(filename)}"})
             except Exception as e:self.send(400,json.dumps({'error':display_error(e)},ensure_ascii=False))
         elif path=='/api/export-data':
             from urllib.parse import parse_qs, quote
-            q=parse_qs(urlparse(self.path).query);pid=int(q.get('project_id',['0'])[0]);scope=q.get('scope',['overall'])[0];fmt=q.get('format',['xlsx'])[0];mode=q.get('mode',['combined'])[0];orientation=q.get('orientation',['landscape'])[0]
-            data=bootstrap();owners=q.get('owner',[]);include_overall=scope in ('overall','all')
+            q=parse_qs(urlparse(self.path).query);scope=q.get('scope',['overall'])[0];fmt=q.get('format',['xlsx'])[0];mode=q.get('mode',['combined'])[0];orientation=q.get('orientation',['landscape'])[0]
             try:
+                try:pid=int(q.get('project_id',['0'])[0])
+                except (TypeError,ValueError):raise ValueError('專案編號格式不正確')
+                data=bootstrap();owners=q.get('owner',[]);include_overall=scope in ('overall','all')
                 project,sheets=build_export_sheets(data,pid,owners,include_overall)
                 if not sheets:raise ValueError('請至少選擇一種要匯出的資料')
                 if scope=='owners' and not owners:raise ValueError('請至少選擇一位單位')
@@ -1877,23 +1955,37 @@ class Handler(BaseHTTPRequestHandler):
             except Exception as e:self.send(400,json.dumps({'error':display_error(e)},ensure_ascii=False))
         elif path=='/api/export':
             from urllib.parse import parse_qs
-            q=parse_qs(urlparse(self.path).query); kind=q.get('kind',['budget'])[0]; pid=int(q.get('project_id',['0'])[0]); data=bootstrap(); p=next((x for x in data['projects'] if x['id']==pid),None)
-            if not p:self.send(404,'找不到計畫','text/plain');return
-            b=[x for x in data['budgets'] if x['project_id']==pid]; ex=[x for x in data['expenses'] if x['project_id']==pid]; tr=[x for x in data['transfers'] if x['project_id']==pid and x.get('status','executed')=='executed']
-            if kind=='budget': headers=['計畫','經費類別','單位','經費科目','經費屬性','初始預算','流入','流出','流用後預算','核銷金額','可用餘額','執行率（%）']; rows=[[p['name'],x['source'],x['owner'],x['subject'],x['category'],x['initial'],x['incoming'],x['outgoing'],x['budget'],x['spent'],x['balance'],execution_percent(x['spent'],x['budget'])] for x in b]
-            elif kind=='expenses': headers=['狀態','核銷日期','憑證日期','經費類別','單位','經費屬性','經費科目','核銷金額','付款對象','分配金額','備註']; rows=[['作廢' if x['voided'] else ('待核銷' if not x.get('submitted_date') else '已核銷'),x.get('submitted_date','').replace('-','/'),x.get('voucher_date','').replace('-','/'),x['source'],x['owner'],x.get('category',''),x['subject'],round_amount(x['amount']),'；'.join(z['name'] for z in data['payees'].get(str(x['id']),[])),'；'.join(str(round_amount(z['amount'])) for z in data['payees'].get(str(x['id']),[])),x['note']] for x in ex]
-            elif kind=='transfers': headers=['流用日期','經費類別','流出單位','流出經費屬性','流出經費科目','流入單位','流入經費屬性','流入經費科目','流用金額','備註']; rows=[[x['date'].replace('-','/'),x['source'],x['from_owner'],x.get('from_category',''),x['from_subject'],x['to_owner'],x.get('to_category',''),x['to_subject'],x['amount'],x['note']] for x in tr]
-            elif kind=='flowchanges':
-                start=q.get('date_from',[''])[0]; end=q.get('date_to',[start])[0]
-                with connect() as db: changes=flow_change_report(db,pid,start,end)
-                headers=['經費類別','經費科目','變更前預算','變更後預算','增減']; rows=[[x['source'],x['subject'],x['before'],x['after'],x['change']] for x in changes]
-            else: headers=['來源','科目','流用後預算','已執行','可用餘額']; rows=[[x['source'],x['subject'],x['budget'],x['spent'],x['balance']] for x in b]
-            self.send(200,make_xlsx(headers,rows),'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+            q=parse_qs(urlparse(self.path).query); kind=q.get('kind',['budget'])[0]
+            if kind!='flowchanges':
+                self.send(400,json.dumps({'error':'不支援的匯出資料類型'},ensure_ascii=False));return
+            try:pid=int(q.get('project_id',['0'])[0])
+            except (TypeError,ValueError):self.send(400,json.dumps({'error':'專案編號格式不正確'},ensure_ascii=False));return
+            data=bootstrap(); p=next((x for x in data['projects'] if x['id']==pid),None)
+            if not p:self.send(404,'找不到專案','text/plain');return
+            start=q.get('date_from',[''])[0]; end=q.get('date_to',[start])[0]
+            try:
+                start=parse_date(start,'起始流用日期');end=parse_date(end,'結束流用日期')
+                with connect() as db: changes=flow_change_report(db,pid,start,end,include_category=True)
+                headers=['經費類別','經費屬性','預算科目','變更前預算','變更後預算','增減']
+                def report_rows(items):return [[x['source'],x['category'],x['subject'],x['before'],x['after'],x['change']] for x in items]
+                sheets=[('總表',headers,report_rows(changes)+[['合計','','',sum(x['before'] for x in changes),sum(x['after'] for x in changes),sum(x['change'] for x in changes)]])]
+                for source in sorted({x['source'] for x in changes}):
+                    items=[x for x in changes if x['source']==source]
+                    sheets.append((source,headers,report_rows(items)+[['合計','','',sum(x['before'] for x in items),sum(x['after'] for x in items),sum(x['change'] for x in items)]]))
+                self.send(200,make_xlsx_sheets(sheets),'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+            except Exception as e:self.send(400,json.dumps({'error':display_error(e)},ensure_ascii=False))
         elif path=='/':self.send(200,(STATIC_DIR/'index.html').read_bytes(),'text/html; charset=utf-8')
         elif path=='/style.css':self.send(200,(STATIC_DIR/'style.css').read_bytes(),'text/css; charset=utf-8')
         elif path=='/app.js':self.send(200,(STATIC_DIR/'app.js').read_bytes(),'application/javascript; charset=utf-8')
         else:self.send(404,'Not found','text/plain')
     def do_POST(self):
+        host=self.headers.get('Host','').lower()
+        origin=self.headers.get('Origin','')
+        allowed_hosts={f'{HOST}:{PORT}'.lower(),f'localhost:{PORT}'.lower()}
+        if host not in allowed_hosts or (origin and urlparse(origin).netloc.lower() not in allowed_hosts):
+            self.send(403,json.dumps({'error':'請從本機系統頁面送出請求'},ensure_ascii=False));return
+        if self.headers.get_content_type()!='application/json':
+            self.send(415,json.dumps({'error':'請求格式必須是 JSON'},ensure_ascii=False));return
         length=int(self.headers.get('Content-Length',0)); raw=self.rfile.read(length)
         try:
             if self.path=='/api/email/preview':
@@ -1910,9 +2002,6 @@ class Handler(BaseHTTPRequestHandler):
                 send_email(config,to,'專案經費管理系統－寄件測試',html)
                 self.send(200,json.dumps({'ok':True},ensure_ascii=False));return
             if self.path=='/api/email/send':
-                origin=self.headers.get('Origin','')
-                if origin and urlparse(origin).netloc not in (f'{HOST}:{PORT}',f'localhost:{PORT}'):
-                    raise ValueError('寄送請求來源無效，請從本機系統頁面操作')
                 payload=json.loads(raw.decode('utf-8'));pid=int(payload.get('project_id') or 0);recipient_ids=payload.get('recipient_ids',[]) or [];manager_scopes=payload.get('manager_scopes',{}) or {};formats=payload.get('formats') or ['xlsx']
                 report,messages,duplicates=build_email_payloads(pid,recipient_ids,manager_scopes,formats)
                 if not messages:raise ValueError('請至少選取一位收件人')
@@ -1924,29 +2013,32 @@ class Handler(BaseHTTPRequestHandler):
                 threading.Thread(target=run_email_delivery_job,args=(batch_id,messages,config),daemon=True).start()
                 self.send(202,json.dumps({'ok':True,'batch_id':batch_id,'total':len(messages),'duplicates':duplicates},ensure_ascii=False));return
             if self.path=='/api/preview':
-                payload=json.loads(raw.decode('utf-8')); mapped={'來源':'source','經費來源':'source','經費類別':'source','單位':'owner','單位':'owner','科目':'subject','預算科目':'subject','經費科目':'subject','屬性':'category','預算屬性':'category','經費屬性':'category','初始預算':'initial','預算':'initial','金額':'initial'}
+                payload=json.loads(raw.decode('utf-8')); mapped=BUDGET_IMPORT_HEADERS
                 parsed=[]; names=[]; errors=[]
                 for f in payload.get('files',[]):
                     names.append(f['name'])
                     try:
                         file_rows=parse_upload(f['name'],base64.b64decode(f['data']))
                         if not file_rows:errors.append(f"{f['name']}：沒有資料列");continue
+                        header_errors=validate_import_headers(file_rows,f['name'],mapped)
+                        if header_errors:errors.extend(header_errors);continue
                         normalized=[{mapped.get(str(k).strip(),str(k).strip()):v for k,v in r.items()} for r in file_rows]
                         required={'source','owner','category','subject','initial'}
-                        if not required.issubset(normalized[0]):errors.append(f"{f['name']}：缺少必填欄位（單位、經費類別、經費屬性、預算科目、初始預算）")
+                        header_fields={mapped.get(str(h).strip(),str(h).strip()) for h in file_rows.headers if str(h or '').strip()}
+                        if not required.issubset(header_fields):errors.append(f"{f['name']}：缺少必填欄位（單位、經費類別、經費屬性、預算科目、初始預算）")
                         for i,row in enumerate(normalized,2):
                             if is_blank_import_row(row):continue
+                            row['_file']=f['name'];row['_row_number']=i
                             missing=[label for key,label in [('owner','單位'),('source','經費類別'),('category','經費屬性'),('subject','預算科目'),('initial','初始預算')] if not str(row.get(key) or '').strip()]
                             if missing:errors.append(f"{f['name']} 第 {i} 列：必填欄位空白（{'、'.join(missing)}）")
-                            elif not re.fullmatch(r'\s*-?(?:\d+|\d{1,3}(?:,\d{3})+)(?:\.\d+)?\s*',str(row.get('initial',''))):errors.append(f"{f['name']} 第 {i} 列：初始預算必須是數字")
+                            elif not re.fullmatch(r'\s*[+-]?(?:\d+|\d{1,3}(?:,\d{3})+)(?:\.\d+)?\s*',str(row.get('initial',''))):errors.append(f"{f['name']} 第 {i} 列：初始預算必須是數字")
+                            else:
+                                try:
+                                    row['initial']=input_amount(row['initial'],'初始預算')
+                                    if row['initial']<0:errors.append(f"{f['name']} 第 {i} 列：初始預算不可小於 0（{row.get('owner','')}／{row.get('subject','')}）")
+                                except ValueError as e:errors.append(f"{f['name']} 第 {i} 列：{e}")
                             parsed.append(row)
                     except Exception as e: errors.append(f"{f['name']}：{e}")
-                for i,r in enumerate(parsed,2):
-                    if str(r.get('initial') or '').strip():
-                        try:
-                            r['initial']=round_amount(r['initial'])
-                            if r['initial']<0:errors.append(f"第 {i} 列初始預算不可小於 0：{r.get('owner','')}／{r.get('subject','')}")
-                        except Exception:pass
                 new_options={'source':[],'owner':[],'subject':[],'category':[]}
                 pid=int(payload.get('project_id') or 0)
                 if pid:
@@ -1959,25 +2051,28 @@ class Handler(BaseHTTPRequestHandler):
                         new_options['source']=sorted({str(r.get('source') or '').strip() for r in parsed if str(r.get('source') or '').strip() and str(r.get('source') or '').strip() not in known_sources})
                 self.send(200,json.dumps({'rows':parsed,'filenames':names,'errors':errors,'new_options':new_options},ensure_ascii=False)); return
             elif self.path=='/api/preview-expenses':
-                payload=json.loads(raw.decode('utf-8')); mapped={'登錄公司總務會計系統日期':'submitted_date','批次說明':'batch_description','登錄日期':'submitted_date','核銷日期':'submitted_date','憑證日期':'voucher_date','發票日期':'voucher_date','經費類別':'source','經費來源':'source','來源':'source','主持人':'owner','單位':'owner','經費科目':'subject','預算科目':'subject','科目':'subject','經費屬性':'category','屬性':'category','核銷總額':'amount','核銷金額':'amount','金額':'amount','用途／備註':'note','用途/備註':'note','備註':'note','付款對象':'payee_names','分配金額':'payee_amounts'}
+                payload=json.loads(raw.decode('utf-8')); mapped=EXPENSE_IMPORT_HEADERS
                 with connect() as db: project=require_project(db,int(payload.get('project_id',0)))
                 rows=[];names=[];errors=[];warnings=[]
                 for f in payload.get('files',[]):
                     names.append(f['name'])
                     try:
                         parsed=parse_upload(f['name'],base64.b64decode(f['data']))
-                        canonical={mapped.get(str(k).strip(),str(k).strip()) for k in parsed[0]} if parsed else set()
+                        if not parsed:errors.append(f"{f['name']}：沒有資料列");continue
+                        header_errors=validate_import_headers(parsed,f['name'],mapped)
+                        if header_errors:errors.extend(header_errors);continue
+                        canonical={mapped.get(str(k).strip(),str(k).strip()) for k in parsed.headers if str(k or '').strip()}
                         if parsed and not {'source','owner','subject','category','amount'}.issubset(canonical):
-                            errors.append(f"{f['name']}：缺少經費類別、單位、預算科目、經費屬性或核銷總額欄位");continue
+                            errors.append(f"{f['name']}：缺少經費類別、單位、預算科目、經費屬性或核銷金額欄位");continue
                         for i,rawrow in enumerate(parsed,2):
                             if is_blank_import_row(rawrow):continue
                             row={mapped.get(str(k).strip(),str(k).strip()):v for k,v in rawrow.items()}
                             try:
                                 missing=[label for key,label in [('owner','單位'),('source','經費類別'),('subject','預算科目'),('category','經費屬性')] if not str(row.get(key) or '').strip()]
                                 if missing:raise ValueError(f"必填欄位空白（{'、'.join(missing)}）")
-                                if str(row.get('amount') or '').strip()=='':raise ValueError('核銷總額不可空白')
-                                total=round_amount(row.get('amount'))
-                                if total<0:raise ValueError('核銷總額不可小於 0')
+                                if str(row.get('amount') or '').strip()=='':raise ValueError('核銷金額不可空白')
+                                total=input_amount(row.get('amount'),'核銷金額')
+                                if total<0:raise ValueError('核銷金額不可小於 0')
                                 missing_budget_item=False
                                 with connect() as db:
                                     pid=int(payload.get('project_id',0)); require_project(db,pid)
@@ -1989,39 +2084,44 @@ class Handler(BaseHTTPRequestHandler):
                                 if missing_budget_item:
                                     source=str(row.get('source') or '').strip();owner=str(row.get('owner') or '').strip();subject=str(row.get('subject') or '').strip();category=str(row.get('category') or '').strip()
                                     warnings.append(f'{f["name"]} 第 {i} 列：找不到經費類別「{source}」、單位「{owner}」、預算科目「{subject}」、經費屬性「{category}」完全相符的預算明細。')
-                                rows.append({'batch_description':str(row.get('batch_description') or '').strip(),'submitted_date':submitted,'voucher_date':voucher,'source':str(row.get('source') or '').strip(),'owner':str(row.get('owner') or '').strip(),'subject':str(row.get('subject') or '').strip(),'category':str(row.get('category') or '').strip(),'amount':total,'note':str(row.get('note') or ''),'payees':payees,'missing_budget_item':missing_budget_item})
+                                rows.append({'_file':f['name'],'_row_number':i,'batch_description':str(row.get('batch_description') or '').strip(),'submitted_date':submitted,'voucher_date':voucher,'source':str(row.get('source') or '').strip(),'owner':str(row.get('owner') or '').strip(),'subject':str(row.get('subject') or '').strip(),'category':str(row.get('category') or '').strip(),'amount':total,'note':str(row.get('note') or ''),'payees':payees,'missing_budget_item':missing_budget_item})
                             except Exception as e:errors.append(f"{f['name']} 第 {i} 列：{e}")
                     except Exception as e:errors.append(f"{f['name']}：{e}")
                 self.send(200,json.dumps({'rows':rows,'filenames':names,'errors':errors,'warnings':warnings},ensure_ascii=False));return
             elif self.path=='/api/preview-transfers':
-                payload=json.loads(raw.decode('utf-8'));mapped={'流出負責人':'from_owner','流入負責人':'to_owner','流用日期':'date','日期':'date','經費類別':'source','經費來源':'source','流出單位':'from_owner','流出預算科目':'from_subject','流出經費科目':'from_subject','流出科目':'from_subject','流出經費屬性':'from_category','流出屬性':'from_category','流入單位':'to_owner','流入預算科目':'to_subject','流入經費科目':'to_subject','流入科目':'to_subject','流入經費屬性':'to_category','流入屬性':'to_category','金額':'amount','流用金額':'amount','備註':'note'}
+                payload=json.loads(raw.decode('utf-8'));mapped=TRANSFER_IMPORT_HEADERS
                 pid=int(payload.get('project_id',0));rows=[];names=[];errors=[];duplicates=[]
                 with connect() as db:
                     require_project(db,pid);project_totals=totals(db,pid);options={k:{x[0] for x in db.execute("SELECT value FROM project_options WHERE project_id=? AND kind=?",(pid,k))} for k in ('source','owner','subject','category')}
                     owner_spent={};owner_budget={}
                     for x in project_totals:
                         owner_spent[x['owner']]=owner_spent.get(x['owner'],0)+round_amount(x['spent']);owner_budget[x['owner']]=owner_budget.get(x['owner'],0)+round_amount(x['budget'])
-                    budget_map={(x['source'],x['owner'],x['subject'],x['category']):dict(x) for x in project_totals};seen=set()
+                    budget_map={(x['source'],x['owner'],x['subject'],x['category']):dict(x) for x in project_totals};initial_budget_keys=set(budget_map);allowed_target_pairs={(x['source'],x['category'],x['subject']) for x in project_totals};seen=set()
                     for f in payload.get('files',[]):
                         names.append(f['name'])
                         try:
                             parsed=parse_upload(f['name'],base64.b64decode(f['data']))
                             if not parsed:errors.append(f"{f['name']}：沒有資料列");continue
+                            header_errors=validate_import_headers(parsed,f['name'],mapped)
+                            if header_errors:errors.extend(header_errors);continue
                             normalized=[{mapped.get(str(k).strip(),str(k).strip()):v for k,v in rawrow.items()} for rawrow in parsed]
                             required={'date','source','from_owner','from_subject','from_category','to_owner','to_subject','to_category','amount'}
-                            if not required.issubset(normalized[0]):errors.append(f"{f['name']}：缺少必填欄位（流用日期、經費類別、流出與流入單位、預算科目及經費屬性、金額）")
+                            header_fields={mapped.get(str(h).strip(),str(h).strip()) for h in parsed.headers if str(h or '').strip()}
+                            if not required.issubset(header_fields):errors.append(f"{f['name']}：缺少必填欄位（流用日期、經費類別、流出與流入單位、預算科目及經費屬性、流用金額）")
                             for rownum,r in enumerate(normalized,2):
                                 if is_blank_import_row(r):continue
                                 try:
                                     required_labels=[('date','流用日期'),('source','經費類別'),('from_owner','流出單位'),('from_subject','流出預算科目'),('from_category','流出經費屬性'),('to_owner','流入單位'),('to_subject','流入預算科目'),('to_category','流入經費屬性'),('amount','金額')]
                                     missing=[label for key,label in required_labels if not str(r.get(key) or '').strip()]
                                     if missing:raise ValueError('必填欄位空白（'+'、'.join(missing)+'）')
-                                    r['date']=validate_transfer_date(require_project(db,pid),r['date']);amount=round_amount(r['amount'])
+                                    r['date']=validate_transfer_date(require_project(db,pid),r['date']);amount=input_amount(r['amount'],'流用金額')
+                                    r['_file']=f['name'];r['_row_number']=rownum
                                     if amount<=0:raise ValueError('金額必須大於 0')
                                     option_kind={'from_owner':'owner','to_owner':'owner','from_subject':'subject','to_subject':'subject','from_category':'category','to_category':'category'}
                                     for key,label in [('source','經費類別'),('from_owner','流出單位'),('to_owner','流入單位'),('from_subject','流出預算科目'),('to_subject','流入預算科目'),('from_category','流出經費屬性'),('to_category','流入經費屬性')]:
-                                        if r[key] not in options[option_kind.get(key,key)]:raise ValueError(f'{label}不是本計畫已建立的選項')
+                                        if r[key] not in options[option_kind.get(key,key)]:raise ValueError(f'{label}不是本專案已建立的選項')
                                     if r['from_category']!=r['to_category']:raise ValueError('流出與流入經費屬性必須相同')
+                                    if (r['source'],r['to_category'],r['to_subject']) not in allowed_target_pairs:raise ValueError('本專案預算明細中沒有相同經費類別、經費屬性及預算科目的配對，請先建立預算明細')
                                     if r['from_owner']==r['to_owner'] and r['from_subject']==r['to_subject'] and r['from_category']==r['to_category']:raise ValueError('流出與流入不可為同一預算項目')
                                     key=(r['date'],r['source'],r['from_owner'],r['from_subject'],r['from_category'],r['to_owner'],r['to_subject'],r['to_category'],amount,str(r.get('note') or '').strip())
                                     out=budget_map.get((r['source'],r['from_owner'],r['from_subject'],r['from_category']))
@@ -2034,9 +2134,9 @@ class Handler(BaseHTTPRequestHandler):
                                     if is_duplicate:duplicates.append(len(rows)+1)
                                     seen.add(key)
                                     out['budget']=round_amount(out['budget'])-amount;out['balance']=round_amount(out['balance'])-amount;out['available_balance']=round_amount(out.get('available_balance',out['balance']))-amount
-                                    target_key=(r['source'],r['to_owner'],r['to_subject'],r['to_category']);target=budget_map.get(target_key)
+                                    target_key=(r['source'],r['to_owner'],r['to_subject'],r['to_category']);target=budget_map.get(target_key);r['missing_budget_item']=target_key not in initial_budget_keys
                                     if target:
-                                        target['budget']=round_amount(target['budget'])+amount;target['balance']=round_amount(target['balance'])+amount
+                                        target['budget']=round_amount(target['budget'])+amount;target['balance']=round_amount(target['balance'])+amount;target['available_balance']=round_amount(target['balance'])-round_amount(target.get('reserved_out',0))
                                     else:
                                         budget_map[target_key]={'source':r['source'],'owner':r['to_owner'],'subject':r['to_subject'],'category':r['to_category'],'budget':amount,'balance':amount,'available_balance':amount,'reserved_out':0,'spent':0,'id':None}
                                     owner_budget[r['from_owner']]=owner_budget.get(r['from_owner'],0)-(amount if r['from_owner']!=r['to_owner'] else 0);owner_budget[r['to_owner']]=owner_budget.get(r['to_owner'],0)+(amount if r['from_owner']!=r['to_owner'] else 0)
@@ -2046,14 +2146,30 @@ class Handler(BaseHTTPRequestHandler):
                         except Exception as e:errors.append(f"{f['name']}：{e}")
                 self.send(200,json.dumps({'rows':rows,'filenames':names,'errors':errors,'duplicates':duplicates},ensure_ascii=False));return
             elif self.path=='/api/restore':
-                payload=json.loads(raw.decode('utf-8')); candidate=DB_PATH.with_name('經費管理.restore.db'); candidate.write_bytes(base64.b64decode(payload['data']))
-                check=sqlite3.connect(candidate)
+                candidate=DB_PATH.with_name('經費管理.restore.db');backup=DB_PATH.with_name('經費管理.before-restore.db')
                 try:
-                    integrity=check.execute('PRAGMA integrity_check').fetchone()[0]
-                    tables={r[0] for r in check.execute("SELECT name FROM sqlite_master WHERE type='table'")}
-                    if integrity!='ok' or not {'projects','budget_items','expenses','transfers'}.issubset(tables): raise ValueError('備份檔不是有效的經費資料庫')
-                finally: check.close()
-                os.replace(candidate,DB_PATH); initialize(); self.send(200,json.dumps({'ok':True},ensure_ascii=False)); return
+                    payload=json.loads(raw.decode('utf-8'));candidate.write_bytes(base64.b64decode(payload['data'],validate=True))
+                    check=sqlite3.connect(candidate)
+                    try:
+                        integrity=check.execute('PRAGMA integrity_check').fetchone()[0]
+                        tables={r[0] for r in check.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+                        if integrity!='ok' or not {'projects','budget_items','expenses','transfers'}.issubset(tables):raise ValueError('備份檔不是有效的經費資料庫')
+                    finally:check.close()
+                    if DB_PATH.exists():shutil.copy2(DB_PATH,backup)
+                    gc.collect()
+                    os.replace(candidate,DB_PATH)
+                    try:initialize()
+                    except Exception:
+                        if backup.exists():os.replace(backup,DB_PATH)
+                        else:DB_PATH.unlink(missing_ok=True)
+                        raise
+                except (sqlite3.DatabaseError,ValueError,KeyError,binascii.Error,OSError) as e:
+                    if isinstance(e,sqlite3.DatabaseError):raise ValueError('備份檔無法讀取或不是有效的經費資料庫') from e
+                    if isinstance(e,(KeyError,binascii.Error)):raise ValueError('備份檔格式不正確或缺少資料內容') from e
+                    if isinstance(e,OSError):raise ValueError('資料庫檔案目前無法替換，請關閉其他使用中的系統視窗後重試') from e
+                    raise
+                finally:candidate.unlink(missing_ok=True)
+                self.send(200,json.dumps({'ok':True},ensure_ascii=False)); return
             else:res=apply_action(json.loads(raw.decode('utf-8')))
             self.send(200,json.dumps(res,ensure_ascii=False))
         except Exception as e:self.send(400,json.dumps({'error':display_error(e)},ensure_ascii=False))

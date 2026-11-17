@@ -77,6 +77,10 @@ button:not(:disabled) {
 }
 
 .brandmark {
+  border:0;
+  cursor:pointer;
+  overflow:hidden;
+  flex:0 0 38px;
   background:var(--green);
   color:white;
   border-radius:11px;
@@ -559,6 +563,7 @@ select:focus,input:focus,textarea:focus {
 .dependency-impact>.secondary{margin-top:10px}
 
 .modal {
+  overscroll-behavior:contain;
   width:min(680px,100%);
   max-height:90vh;
   overflow:auto;
@@ -623,21 +628,6 @@ select:focus,input:focus,textarea:focus {
 .toast.show {
   opacity:1;
   transform:translate(-50%,0)
-}
-
-.dropzone {
-  border:1px dashed var(--line);
-  background:var(--soft-surface);
-  border-radius:10px;
-  padding:28px;
-  text-align:center;
-  color:var(--ink)
-}
-
-.dropzone input {
-  display:block;
-  margin:14px auto 0;
-  border:0
 }
 
 .note {
@@ -869,10 +859,6 @@ select option {
   color:var(--muted)
 }
 
-.dropzone .field-mark {
-  margin-left:3px
-}
-
 .toolbar label {
   display:flex;
   align-items:center;
@@ -977,17 +963,6 @@ select option {
   font-size:14px
 }
 
-.chart-year-label {
-  display:flex;
-  align-items:center;
-  gap:8px;
-  font-weight:600
-}
-
-.chart-year-label select {
-  padding:7px 10px
-}
-
 .chart-wrap {
   width:100%;
   max-width:100%;
@@ -1025,20 +1000,6 @@ select option {
   stroke-width:3
 }
 
-.chart-foot {
-  display:flex;
-  justify-content:space-between;
-  gap:12px;
-  flex-wrap:wrap;
-  padding-top:6px;
-  color:var(--ink);
-  font-size:13px
-}
-
-.theme-toggle {
-  min-width:42px
-}
-
 @media print {
   .table-pagination,.sort-indicator,#themeToggle { display:none!important }
 }
@@ -1057,12 +1018,6 @@ select option {
 }
 
 
-.chart-year-label {
-  font-size:14px;
-  color:var(--ink)
-}
-
-
 @media(max-width:850px) {
   .shell { display:block }
 
@@ -1075,16 +1030,11 @@ select option {
   .sidebar .nav-label,.sidebar-foot { display:none }
   .nav { white-space:nowrap }
 }
-.options-grid {
-  display:block
-}
-
-.options-grid>.panel {
-  width:100%;
-  margin-bottom:16px
-}
 
 .checkbox-list label {
+  display:flex;
+  align-items:center;
+  gap:8px;
   padding:8px;
   background:var(--canvas);
   border-radius:6px
@@ -1099,6 +1049,8 @@ select option {
 }
 
 .table td.action-col {
+  z-index:3;
+  background:var(--table-surface);
   text-align:center
 }
 
@@ -1108,10 +1060,6 @@ select option {
 
 .table .percent {
   text-align:center
-}
-
-.sidebar-foot {
-  color:var(--ink)
 }
 
 .grid2>* {
@@ -1129,82 +1077,11 @@ select option {
   overflow:auto
 }
 
-.batch-heading {
-  display:grid;
-  grid-template-columns:minmax(150px,auto) 1fr auto;
-  align-items:center;
-  gap:14px
-}
-
-.batch-heading>div {
-  display:flex;
-  align-items:center;
-  gap:14px;
-  flex-wrap:wrap
-}
-
-.batch-heading label {
-  white-space:nowrap
-}
-
-.batch-card details {
-  margin-top:12px
-}
-
-.batch-card summary {
-  cursor:pointer;
-  font-weight:600
-}
-
-.detail-table {
-  min-width:1100px
-}
-
-.theme-background-settings {
-  position:relative
-}
-
-.theme-background-settings summary {
-  list-style:none;
-  cursor:pointer;
-  border:1px solid var(--line);
-  border-radius:8px;
-  background:var(--paper);
-  padding:8px 10px;
-  color:var(--ink);
-  white-space:nowrap
-}
-
-.theme-background-settings[open] {
-  position:relative
-}
-
-.theme-background-settings[open] button {
-  display:block;
-  margin-top:5px;
-  white-space:nowrap
-}
-
 .has-background {
   background-image:linear-gradient(#ffffffb8,#ffffffb8),var(--user-background);
   background-size:cover;
   background-position:center;
   background-attachment:fixed
-}
-
-@media(max-width:850px) {
-  .batch-heading {
-    grid-template-columns:1fr
-  }
-
-.batch-heading>div {
-  gap:8px
-}
-
-.theme-background-settings summary {
-  padding:6px
-}
-
 }
 
 /* Header menu and dashboard components */
@@ -1348,10 +1225,9 @@ select option {
 .table-settings:not(:disabled):hover{border-color:var(--green);color:var(--green)}
 .export-section h3{font-size:14px;margin:4px 0 12px;color:var(--ink)}
 .color-field input[type=color]{width:100%;height:42px;padding:4px;cursor:pointer}
-.custom-theme-preview{margin-top:16px;padding:16px;border:1px solid var(--line);border-radius:10px}
-.custom-theme-preview .preview-surface{padding:16px;border:1px solid var(--line);border-radius:8px}
+.custom-theme-preview{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:16px;padding:16px;border:1px solid var(--line);border-radius:10px}
 .custom-theme-preview p{margin:8px 0 14px}
-.custom-theme-preview .preview-action{border:0;border-radius:7px;padding:9px 13px;font-weight:600}
+.custom-theme-preview .preview-action{grid-column:1/-1;justify-self:start;border:0;border-radius:7px;padding:9px 13px;font-weight:600}
 .contrast-warning{color:#B45309;font-weight:700}
 .contrast-ok{color:#237455;font-weight:700}
 /* Shared theme-aware controls and personalized brand mark */
@@ -1361,7 +1237,6 @@ select option {
   --warning-bg:color-mix(in srgb,var(--amber) 14%,var(--paper));
   --success-ink:color-mix(in srgb,#237455 70%,var(--ink))
 }
-.brandmark{border:0;cursor:pointer;overflow:hidden;flex:0 0 38px}
 .brandmark img{width:100%;height:100%;object-fit:cover;border-radius:inherit}
 .brandmark-emoji-grid{display:grid;grid-template-columns:repeat(6,minmax(42px,1fr));gap:8px;margin-top:12px}
 .brandmark-emoji{min-height:48px;border:1px solid var(--line);border-radius:9px;background:var(--paper);color:var(--ink);font-size:23px}
@@ -1416,7 +1291,7 @@ html {
 .table-actions-row .bulk-toolbar input[type="checkbox"]{width:16px;height:16px;margin:0}
 .table-actions-row .table-action-group button,.table-actions-row .table-settings{height:30px;min-height:30px;max-height:30px;padding:5px 10px;font-size:12px;line-height:18px}
 .table-actions-row .table-action-group{margin-right:auto}
-.table-actions-row .table-controls{flex:0 0 auto;padding:0}
+.table-actions-row .table-controls{display:flex;flex:0 0 auto;padding:0}
 .table-component .table-controls{display:none}
 .table-actions-row:not(:has(.table-action-group)){justify-content:flex-end}
 .table th .sort-button{display:inline-flex;align-items:center;gap:5px;padding:0;border:0!important;background:transparent!important;color:inherit!important;font:inherit;font-weight:700;box-shadow:none}
@@ -1427,7 +1302,7 @@ html {
 /* Shared table header, row, and scrollbar states. */
 .table thead th{position:sticky;top:0;z-index:4;background:var(--table-head);color:var(--ink)}
 .table th.action-col{z-index:6;background:var(--table-head)}
-.table td.action-col{z-index:3;background:var(--table-surface)}
+
 .table tbody tr{background:var(--table-surface)}
 .table tbody tr:hover>td{background:var(--hover-surface)}
 .table-wrap:has(.table tbody tr:hover){scrollbar-color:var(--line) var(--hover-surface)}
@@ -1440,7 +1315,7 @@ html {
 .transfer-locked-row .action-col .smallbtn{visibility:hidden;pointer-events:none}
 .transfer-toolbar-line{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:6px}
 .transfer-status-tabs{display:flex;align-items:center;gap:4px;margin:0;padding:0}
-.transfer-filters{flex:1;justify-content:flex-end}
+.transfer-filters{flex:1;flex-wrap:wrap;justify-content:flex-end}
 .transfer-list-panel .table th:nth-child(2),.transfer-list-panel .table td:nth-child(2){width:36px;min-width:36px;max-width:36px}
 .table-component[data-scroll-table="1"] .table-wrap{height:300px;max-height:300px;overflow-x:auto;overflow-y:auto;scrollbar-gutter:stable;scrollbar-color:var(--line) var(--table-surface)}
 .table-component[data-scroll-table="1"] .table-wrap::-webkit-scrollbar-track{background:var(--table-surface)}
@@ -1458,13 +1333,12 @@ html {
 .list-filters>*{height:36px;min-height:36px;font-size:13px;line-height:1.2}
 .list-filters button{padding:7px 11px}
 .table-actions-row.home-table-actions{justify-content:flex-end}
-.table-actions-row .table-controls{display:flex}
-.custom-theme-preview{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+
 .custom-theme-preview .preview-surface,.custom-theme-preview .preview-table{min-width:0;padding:14px;border:1px solid color-mix(in srgb,var(--ink) 18%,var(--paper));border-radius:8px}
 .custom-theme-preview .preview-surface p{margin:8px 0 0}
 .custom-theme-preview .preview-table{background:var(--table-surface,#FAF8F4)}
 .custom-theme-preview .preview-table div{margin-top:8px;padding:8px;border-radius:5px;background:color-mix(in srgb,var(--table-surface,#FAF8F4) 84%,var(--ink));font-size:13px}
-.custom-theme-preview .preview-action{grid-column:1/-1;justify-self:start}
+
 @media(max-width:650px){.home-toolbar-row{align-items:flex-start}.home-toolbar-row .home-export{width:100%;flex-wrap:wrap}.custom-theme-preview{grid-template-columns:1fr}}
 
 /* Keep table grids from inheriting content sizing. */
@@ -1477,8 +1351,8 @@ html {
 /* Keep uploaded background images visible after theme color rules are applied. */
 body.has-background{background-color:var(--canvas);background-image:linear-gradient(color-mix(in srgb,var(--canvas) 72%,transparent),color-mix(in srgb,var(--canvas) 72%,transparent)),var(--user-background);background-repeat:no-repeat,no-repeat;background-size:cover,cover;background-position:center,center;background-attachment:fixed,fixed}
 :root[data-theme="dark"] body.has-background{background-image:linear-gradient(#111827bb,#111827bb),var(--user-background)}
-:root .choice-control{position:relative;display:flex;align-items:stretch;width:100%}
-.choice-control .choice-input{width:100%;min-width:0;padding-right:42px;cursor:pointer}
+:root .choice-control{position:relative;display:flex;align-items:stretch;width:100%;flex-wrap:wrap}
+.choice-control .choice-input{width:100%;min-width:0;padding-right:42px;cursor:text}
 .choice-control .choice-input:disabled{cursor:not-allowed;opacity:.65}
 .choice-toggle{position:absolute;right:4px;top:4px;bottom:4px;width:34px;border:0;border-radius:8px;background:transparent;color:var(--ink);cursor:pointer}
 .choice-toggle:disabled{cursor:not-allowed;opacity:.45}
@@ -1487,18 +1361,13 @@ body.has-background{background-color:var(--canvas);background-image:linear-gradi
 .choice-list[hidden]{display:none}
 .choice-option{display:block;width:100%;padding:9px 11px;border:0;border-radius:7px;background:transparent;color:var(--ink);text-align:left;cursor:pointer}
 .choice-option:not(:disabled):hover,.choice-option.active{background:var(--hover-surface);color:var(--ink)}
+.choice-option[hidden]{display:none}
 .choice-option[aria-selected="true"]::after{content:"✓";float:right;margin-left:12px;color:var(--green);font-weight:700}
 .choice-empty{padding:10px;color:var(--muted)}
-.readonly-field{display:flex;align-items:center;min-height:36px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--table-surface);color:var(--ink)}
-
-/* Email report previews are sandboxed and sized to remain readable in-page. */
-.email-preview-list{display:grid;gap:12px;margin:16px 0}
-.email-preview-card{min-width:0;border:1px solid var(--line);border-radius:10px;background:var(--paper);color:var(--ink);overflow:hidden}
-.email-preview-card>summary{padding:12px 14px;font-weight:700;cursor:pointer}
-.email-preview-card iframe{display:block;width:100%;height:520px;border:0;border-top:1px solid var(--line);background:#f4f1ec}
+.choice-empty[hidden],.choice-dependency[hidden]{display:none}
+.choice-dependency{flex-basis:100%;margin-top:5px;color:var(--muted);font-size:.82rem;line-height:1.35}
 .checkbox-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px;padding:10px;border:1px solid var(--line);border-radius:9px;background:var(--paper)}
-.checkbox-list label{display:flex;align-items:center;gap:8px}
-.email-recipient-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:8px;margin:12px 0}
+
 
 /* Flow import category assignment dialog keeps its action row outside the scroll area. */
 .transfer-category-modal{display:flex;flex-direction:column;overflow:hidden;max-height:88vh;}
@@ -1534,7 +1403,6 @@ body.has-background{background-color:var(--canvas);background-image:linear-gradi
 .import-file-empty{padding:14px 4px;color:var(--muted);text-align:center}.import-file-list{display:grid;gap:6px;margin:12px 0}.import-file-row{display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--paper);color:var(--ink)}.import-file-icon{color:var(--green);font-size:18px}.import-file-name{display:flex;align-items:center;justify-content:space-between;gap:12px;min-width:0;flex:1;overflow-wrap:anywhere}.import-file-name small{flex:0 0 auto;color:var(--muted)}
 .import-mode{margin-top:14px}.import-mode>label{display:grid;gap:7px;font-weight:700}.import-mode .hint{font-weight:400}.import-mode select{max-width:620px}
 .import-wizard-actions{flex:0 0 auto;display:flex;align-items:center;justify-content:flex-end;gap:9px;flex-wrap:wrap;padding:12px 22px;border-top:1px solid var(--line);background:var(--paper);color:var(--ink)}.import-wizard-actions>a{margin-right:auto}.import-wizard-actions button:disabled{opacity:.55;cursor:not-allowed}
-.import-spaced-toolbar{margin-top:15px}
 .export-spaced-field{margin-top:14px}
 .export-note{margin-top:18px}
 .export-submit{margin-top:16px}
@@ -1546,8 +1414,7 @@ body.has-background{background-color:var(--canvas);background-image:linear-gradi
 .email-recipient-option input{margin-top:3px;flex:0 0 auto}
 .email-recipient-option span{display:grid;gap:4px;min-width:0;overflow-wrap:anywhere}
 .email-recipient-option small{color:var(--muted)}
-.email-log-check{width:auto}
-@media(max-width:700px){.email-preview-card iframe{height:440px}.email-preview-list{margin:12px 0}}
+@media(max-width:700px){}
 
 /* Guided email recipient selection and nested message preview dialogs. */
 .email-flow-backdrop{position:fixed;inset:0;z-index:1500;display:flex;align-items:center;justify-content:center;padding:20px;background:rgba(0,0,0,.48)}
@@ -1587,7 +1454,7 @@ body.has-background{background-color:var(--canvas);background-image:linear-gradi
 .email-manager-scopes{display:grid;gap:10px;margin:14px 0}.email-manager-scope{padding:12px;border:1px solid var(--line);border-radius:10px;background:var(--soft-surface)}.email-manager-scope h3{margin:0 0 10px;font-size:1rem}.email-manager-scope h3 small{display:block;margin-top:4px;color:var(--muted);font-weight:400}.email-manager-scope fieldset{display:flex;flex-wrap:wrap;gap:8px 16px;margin:0;padding:10px;border:1px solid var(--line);border-radius:8px}.email-manager-scope legend{padding:0 5px;font-weight:700}.email-manager-scope fieldset label{display:flex;align-items:center;gap:6px}.email-manager-unit-picker{margin-top:10px}.email-manager-unit-picker[hidden]{display:none}.email-manager-unit-picker .checkbox-list{grid-template-columns:1fr;max-height:212px;overflow:auto;overscroll-behavior:contain}
 body.overlay-open{position:fixed;left:0;right:0;width:100%;overflow:hidden;overscroll-behavior:none}
 .modal-back,.email-flow-backdrop{overscroll-behavior:contain;touch-action:auto}
-.modal{overscroll-behavior:contain}
+
 @media(max-width:600px){.email-flow-backdrop{padding:8px}.email-flow-dialog{max-height:94vh;border-radius:12px}.email-flow-dialog>header,.email-flow-content{padding:14px}.email-flow-actions>*{flex:1 1 auto}.email-message-row{grid-template-columns:1fr}.email-message-row small{grid-column:auto}}
 
 /* Shared tab workspace; each selected tab uses the common table host. */
@@ -1633,7 +1500,6 @@ body.overlay-open{position:fixed;left:0;right:0;width:100%;overflow:hidden;overs
 
 :where(a,button,input,select,textarea,summary,[tabindex]:not([tabindex="-1"])):focus-visible{outline:2px solid var(--paper);outline-offset:1px;box-shadow:0 0 0 4px var(--ink)!important}
 
-.transfer-filters{flex-wrap:wrap;justify-content:flex-end}
 .transfer-filters input.search{flex:0 1 230px}
 
 .visually-hidden{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important;border:0!important}

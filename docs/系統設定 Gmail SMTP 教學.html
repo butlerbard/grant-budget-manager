@@ -51,7 +51,7 @@
 <p>Gmail SMTP 伺服器為 <code>smtp.gmail.com</code>。本教學採用 <strong>587 連接埠與 STARTTLS</strong>；這種安全方式會在連線後啟用加密。Gmail 也支援 465 連接埠搭配 SSL/TLS，但本系統預設值為 587 與 STARTTLS。<a href="https://support.google.com/mail/answer/22370?hl=zh-Hant">Google 說明：Gmail SMTP 連線方式</a></p>
 <ol>
 <li>
-<p>在經費管理系統的瀏覽器頁面，開啟任一計畫。</p>
+<p>在經費管理系統的瀏覽器頁面，開啟任一專案。</p>
 </li>
 <li>
 <p>點選左側「Email 經費報告」。</p>
@@ -108,7 +108,7 @@
 <p>請勿把 Google 帳戶的一般登入密碼填入「密碼／應用程式專用密碼」欄位。</p>
 </blockquote>
 <p><strong>確認點：</strong>SMTP 伺服器、連接埠、安全方式與兩個 Email 欄位都已填好，應用程式密碼也已儲存。</p>
-<p>系統會把寄件密碼存放在這台 Windows 電腦的安全憑證區，不會存進經費資料庫。更換電腦後，需要在新電腦重新輸入密碼。Google 帳戶密碼變更後，Google 可能會撤銷既有應用程式密碼；如遇登入失敗，可建立新的應用程式密碼並重新儲存。</p>
+<p>系統會把寄件密碼存放在這台 Windows 電腦的安全憑證區，不會存進 SQLite。同一 Windows 使用者帳戶下搬移或更名專案資料夾可沿用設定；複製到其他電腦時，需在新電腦重新輸入密碼。Google 帳戶密碼變更後，Google 可能會撤銷既有應用程式密碼；如遇登入失敗，可建立新的應用程式密碼並重新儲存。</p>
 <h2 id="sec-6">6. 寄送測試信</h2>
 <ol>
 <li>在「測試信寄給」欄位輸入一個你能收信的 Email 地址。</li>
@@ -119,8 +119,8 @@
 <h2 id="sec-7">7. 常見問題</h2>
 <h3>找不到「應用程式密碼」</h3>
 <p><strong>現象：</strong>Google 帳戶頁面沒有「應用程式密碼」選項。</p>
-<p><strong>原因：</strong>Google 說明指出，若帳戶的兩步驟驗證只使用安全金鑰、帳戶由公司或學校管理，或帳戶已啟用進階保護計畫，可能不會提供應用程式密碼選項。<a href="https://support.google.com/accounts/answer/185833?hl=zh-Hant">Google 說明：應用程式密碼的限制</a></p>
-<p><strong>解法：</strong>確認兩步驟驗證已設定；若帳戶由公司或學校管理，請洽詢管理員是否允許應用程式密碼或 SMTP 寄信。若 Google 帳戶不提供應用程式密碼，本系統目前無法使用 Google 授權登入替代；請改用管理者允許且支援 SMTP 帳號密碼驗證的郵件服務，再依服務提供者的設定資料填入系統。<a href="https://support.google.com/accounts/answer/7539956?hl=zh-Hant">Google 說明：進階保護計畫常見問題</a></p>
+<p><strong>原因：</strong>Google 說明指出，若帳戶的兩步驟驗證只使用安全金鑰、帳戶由公司或學校管理，或帳戶已啟用進階保護專案，可能不會提供應用程式密碼選項。<a href="https://support.google.com/accounts/answer/185833?hl=zh-Hant">Google 說明：應用程式密碼的限制</a></p>
+<p><strong>解法：</strong>確認兩步驟驗證已設定；若帳戶由公司或學校管理，請洽詢管理員是否允許應用程式密碼或 SMTP 寄信。若 Google 帳戶不提供應用程式密碼，本系統目前無法使用 Google 授權登入替代；請改用管理者允許且支援 SMTP 帳號密碼驗證的郵件服務，再依服務提供者的設定資料填入系統。<a href="https://support.google.com/accounts/answer/7539956?hl=zh-Hant">Google 說明：進階保護專案常見問題</a></p>
 <h3>測試時顯示帳號驗證遭拒或密碼錯誤</h3>
 <p><strong>現象：</strong>系統顯示 SMTP 帳號驗證遭拒、使用者名稱或密碼不接受。</p>
 <p><strong>原因：</strong>常見原因是誤填 Google 帳戶的一般密碼、應用程式密碼貼錯，或 Google 已撤銷該應用程式密碼。</p>
