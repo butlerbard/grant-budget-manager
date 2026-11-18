@@ -724,6 +724,7 @@ select option {
 
 .date-control {
   display:flex;
+  position:relative;
   gap:5px
 }
 
@@ -740,7 +741,7 @@ select option {
   padding:0 10px
 }
 
-.native-date-picker {
+.date-control .native-date-picker {
   position:absolute;
   opacity:0;
   width:1px;

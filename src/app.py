@@ -1117,8 +1117,22 @@ def apply_action(a):
                 for row in rows:validate_transfer_unlocked(row)
                 overdraws=transfer_overdraws(db,pid,ids)
                 if any(x.get('reserved_deficit') for x in overdraws):raise ValueError('刪除所選流用會占用其他規劃紀錄已圈存的額度；請先調整或取消規劃')
+                # Check project/source/unit caps before asking the user to confirm
+                # a budget-item overdraw. SAVEPOINT ensures a normal return from
+                # this action cannot accidentally commit the trial deletion.
+                db.execute('SAVEPOINT transfer_delete_cap_check')
+                try:
+                    db.execute(f"DELETE FROM transfers WHERE project_id=? AND id IN ({marks})",[pid,*ids])
+                    validate_ledger_caps(db,pid)
+                except Exception:
+                    db.execute('ROLLBACK TO transfer_delete_cap_check')
+                    db.execute('RELEASE transfer_delete_cap_check')
+                    raise
+                db.execute('ROLLBACK TO transfer_delete_cap_check')
+                db.execute('RELEASE transfer_delete_cap_check')
                 if overdraws and not a.get('confirm_overdraw'):return {'ok':True,'confirmation_required':True,'overdraws':overdraws}
                 db.execute(f"DELETE FROM transfers WHERE project_id=? AND id IN ({marks})",[pid,*ids])
+                validate_ledger_caps(db,pid)
                 validate_reserved_funding(db,pid)
             return {'ok':True,'count':len(ids)}
         if op in ('transfer_bulk_lock','transfer_bulk_unlock'):
