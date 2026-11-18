@@ -1156,6 +1156,9 @@ html {
 .table tbody tr:hover>td{background:var(--hover-surface)}
 .table-wrap:has(.table tbody tr:hover){scrollbar-color:var(--line) var(--hover-surface)}
 .table td.action-col .smallbtn{min-width:0;margin:0;padding:5px 8px;font-size:var(--fs-xs);white-space:nowrap}
+.table .linkbtn{display:inline-block;border:0;background:transparent;color:var(--green);font:inherit;text-align:left;text-decoration:underline;text-underline-offset:2px;padding:2px 0;cursor:pointer;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;vertical-align:middle}
+.table .expense-row td:nth-child(7){overflow:hidden}
+.table .linkbtn:hover,.table .linkbtn:focus-visible{color:var(--ink);text-decoration-thickness:2px}
 .table th.select-col,.table td.select-col{position:sticky;left:0;width:52px;min-width:52px;max-width:52px;padding-left:8px;padding-right:8px;background:var(--table-surface);z-index:var(--z-sticky)}
 .table th.select-col{z-index:var(--z-table-lock);background:var(--table-head)}
 .table th.lock-col,.table td.lock-col{position:sticky;left:52px;width:28px;min-width:28px;max-width:28px;padding:6px 2px;text-align:center;z-index:var(--z-sticky);background:var(--table-surface)}

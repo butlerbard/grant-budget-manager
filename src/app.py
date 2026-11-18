@@ -400,13 +400,27 @@ def transfer_overdraws(db,pid,ids):
     return out
 
 
+def cross_unit_reservations(db,pid):
+    rows=db.execute("SELECT from_owner,source,from_category,COALESCE(to_owner,'') to_owner,SUM(amount) amount FROM transfers WHERE project_id=? AND status='planned' AND from_budget_item_id IS NOT NULL AND amount>0 GROUP BY from_owner,source,from_category,COALESCE(to_owner,'')",(pid,))
+    owner={};combo={}
+    for r in rows:
+        if r['to_owner']==r['from_owner']:continue
+        amount=round_amount(r['amount']);owner[r['from_owner']]=owner.get(r['from_owner'],0)+amount
+        key=(r['from_owner'],r['source'],r['from_category']);combo[key]=combo.get(key,0)+amount
+    return owner,combo
+
+
 def validate_ledger_caps(db,pid):
-    items=totals(db,pid)
-    groups=[('全專案',items)]
-    for key,label in [('owner','單位'),('source','經費類別')]:
-        groups.extend((f'{label}「{name}」',[x for x in items if x[key]==name]) for name in {x[key] for x in items})
-    for label,rows in groups:
+    items=totals(db,pid);owner_reserved,combo_reserved=cross_unit_reservations(db,pid)
+    groups=[('全專案',items,False)]
+    groups.extend((f'單位「{name}」', [x for x in items if x['owner']==name], True) for name in {x['owner'] for x in items})
+    groups.extend((f'經費類別「{name}」',[x for x in items if x['source']==name],False) for name in {x['source'] for x in items})
+    groups.extend((f'單位「{o}」／經費類別「{s}」／經費屬性「{c}」',[x for x in items if (x['owner'],x['source'],x['category'])==(o,s,c)],True) for o,s,c in {(x['owner'],x['source'],x['category']) for x in items})
+    for label,rows,subtract_reservation in groups:
         balance=sum(x['budget']-x['spent'] for x in rows)
+        if subtract_reservation:
+            if rows and label.startswith('單位「') and '／經費類別' not in label:balance-=owner_reserved.get(rows[0]['owner'],0)
+            elif rows:balance-=combo_reserved.get((rows[0]['owner'],rows[0]['source'],rows[0]['category']),0)
         if balance<0:raise ValueError(f'此操作會使{label}可用餘額變成 {balance:,} 元，無法儲存；本次未變更任何資料')
 
 
@@ -983,6 +997,7 @@ def apply_action(a):
                     db.execute("UPDATE expenses SET voided=0 WHERE id=?",(eid,))
             if ids and voided:
                 marks=','.join('?' for _ in ids);db.execute(f"UPDATE expenses SET voided=1 WHERE project_id=? AND id IN ({marks})",[pid,*ids])
+            validate_ledger_caps(db,pid)
             return {'ok':True,'count':len(ids),'voided':bool(voided)}
         if op=='expense_save':
             v=a['data']; pid=int(v['project_id']); require_project(db,pid); total=input_amount(v.get('amount'),'核銷金額')
@@ -1029,7 +1044,13 @@ def apply_action(a):
                 owner_spent=fnum(db.execute("SELECT COALESCE(SUM(amount),0) FROM expenses WHERE project_id=? AND owner=? AND voided=0",(pid,v['owner'])).fetchone()[0])
                 if old and not old['voided'] and old['owner']==v['owner']: owner_spent-=fnum(old['amount'])
                 owner_limit=sum(x['budget'] for x in totals(db,pid) if x['owner']==v['owner'])
+                owner_reserved,_=cross_unit_reservations(db,pid);owner_limit-=owner_reserved.get(v['owner'],0)
                 if owner_spent+total>owner_limit: raise ValueError(f'超過此單位核銷上限；目前最多可核銷 {max(0,owner_limit-owner_spent):,.0f} 元')
+                combo=(v['owner'],v['source'],v['category']);combo_budget=sum(x['budget'] for x in totals(db,pid) if (x['owner'],x['source'],x['category'])==combo)
+                _,combo_reserved=cross_unit_reservations(db,pid);combo_budget-=combo_reserved.get(combo,0)
+                combo_spent=round_amount(db.execute("SELECT COALESCE(SUM(amount),0) FROM expenses WHERE project_id=? AND owner=? AND source=? AND category=? AND voided=0",(pid,*combo)).fetchone()[0])
+                if old and not old['voided'] and (old['owner'],old['source'],old['category'])==combo:combo_spent-=round_amount(old['amount'])
+                if combo_spent+total>combo_budget:raise ValueError(f'超過單位「{v["owner"]}」／經費類別「{v["source"]}」／經費屬性「{v["category"]}」核銷上限；目前最多可核銷 {max(0,combo_budget-combo_spent):,} 元')
                 item_total=next((x for x in totals(db,pid) if x['id']==item['id']),None)
                 if item_total and item_total['reserved_out']:
                     prior=round_amount(old['amount']) if old and not old['voided'] and old['budget_item_id']==item['id'] else 0
@@ -1102,11 +1123,82 @@ def apply_action(a):
                 db.execute("UPDATE transfers SET date=?,source=?,from_owner=?,from_subject=?,from_category=?,to_owner=?,to_subject=?,to_category=?,status=?,amount=?,note=?,from_budget_item_id=?,to_budget_item_id=? WHERE id=?",(v['date'],v['source'],v['from_owner'],v['from_subject'],v['from_category'],v['to_owner'],v['to_subject'],v['to_category'],status,amount,v['note'],from_id,to_id,int(v['id'])))
             else:
                 db.execute("INSERT INTO transfers(project_id,date,source,from_owner,from_subject,from_category,to_owner,to_subject,to_category,status,amount,note,locked,from_budget_item_id,to_budget_item_id) VALUES(?,?,?,?,?,?,?,?,?,?,?, ?,0,?,?)",(pid,v['date'],v['source'],v['from_owner'],v['from_subject'],v['from_category'],v['to_owner'],v['to_subject'],v['to_category'],status,amount,v['note'],from_id,to_id))
-            if status=='executed':validate_ledger_caps(db,pid)
+            validate_ledger_caps(db,pid)
             validate_reserved_funding(db,pid)
             for key,kind in (('from_owner','owner'),('to_owner','owner'),('from_subject','subject'),('to_subject','subject')):
                 if v[key]:ensure_project_option(db,pid,kind,v[key])
             return {'ok':True}
+        if op=='transfer_bulk_execute':
+            pid=int(a['project_id']);project=require_project(db,pid);ids=list(dict.fromkeys(int(x) for x in a.get('ids',[])))
+            if not ids:raise ValueError('請先勾選流用紀錄')
+            marks=','.join('?' for _ in ids);rows=list(db.execute(f"SELECT * FROM transfers WHERE project_id=? AND id IN ({marks})",[pid,*ids]))
+            by_id={int(x['id']):x for x in rows};blocked=[];targets={}
+            for tid in ids:
+                row=by_id.get(tid)
+                if not row:blocked.append({'id':tid,'reason':'紀錄不存在'});continue
+                reasons=[]
+                if row['locked']:reasons.append('已鎖定')
+                if row['status']!='planned':reasons.append('不是規劃中')
+                if not row['date']:reasons.append('缺流用日期')
+                else:
+                    try:validate_transfer_date(project,row['date'])
+                    except ValueError as e:reasons.append(str(e))
+                for key,label in [('source','經費類別'),('from_owner','流出單位'),('from_subject','流出科目'),('from_category','流出屬性'),('to_owner','流入單位'),('to_subject','流入科目'),('to_category','流入屬性')]:
+                    if not str(row[key] or '').strip():reasons.append(f'缺{label}')
+                if row['amount'] is None or round_amount(row['amount'])<=0:reasons.append('流用金額需大於 0')
+                if row['from_category'] and row['to_category'] and row['from_category']!=row['to_category']:reasons.append('流出與流入經費屬性不同')
+                if all(row[k] for k in ('from_owner','from_subject','from_category','to_owner','to_subject','to_category')) and (row['from_owner'],row['from_subject'],row['from_category'])==(row['to_owner'],row['to_subject'],row['to_category']):reasons.append('流出與流入為同一項目')
+                if reasons:blocked.append({'id':tid,'reason':'、'.join(reasons)})
+                else:
+                    key=(row['source'],row['to_owner'],row['to_subject'],row['to_category']);target=db.execute("SELECT id FROM budget_items WHERE project_id=? AND source=? AND owner=? AND subject=? AND category=?",(pid,*key)).fetchone()
+                    if not target:targets[key]=None
+            if blocked:return {'ok':True,'blocked':blocked}
+            db.execute('SAVEPOINT transfer_bulk_execute_check')
+            try:
+                target_ids={}
+                for key in targets:
+                    db.execute("INSERT INTO budget_items(project_id,source,owner,subject,category,initial) VALUES(?,?,?,?,?,0)",(pid,*key));target_ids[key]=db.execute("SELECT id FROM budget_items WHERE project_id=? AND source=? AND owner=? AND subject=? AND category=?",(pid,*key)).fetchone()['id']
+                trial_blocked=[]
+                for row in rows:
+                    db.execute('SAVEPOINT transfer_bulk_execute_item')
+                    try:
+                        source=next((x for x in totals(db,pid) if (x['source'],x['owner'],x['subject'],x['category'])==(row['source'],row['from_owner'],row['from_subject'],row['from_category'])),None)
+                        if not source:raise ValueError('找不到流出預算明細')
+                        key=(row['source'],row['to_owner'],row['to_subject'],row['to_category']);target=db.execute("SELECT id FROM budget_items WHERE project_id=? AND source=? AND owner=? AND subject=? AND category=?",(pid,*key)).fetchone()
+                        db.execute("UPDATE transfers SET status='executed',from_budget_item_id=?,to_budget_item_id=? WHERE id=?",(source['id'],target['id'],row['id']))
+                        after=next(x for x in totals(db,pid) if x['id']==source['id'])
+                        if after['balance']<0:raise ValueError(f"流出預算明細「{row['from_owner']}／{row['from_subject']}」餘額不足 {abs(after['balance']):,} 元")
+                    except ValueError as e:
+                        db.execute('ROLLBACK TO transfer_bulk_execute_item')
+                        trial_blocked.append({'id':row['id'],'reason':str(e)})
+                    finally:db.execute('RELEASE transfer_bulk_execute_item')
+                if trial_blocked:
+                    db.execute('ROLLBACK TO transfer_bulk_execute_check');db.execute('RELEASE transfer_bulk_execute_check')
+                    return {'ok':True,'blocked':trial_blocked}
+                try:
+                    validate_ledger_caps(db,pid);validate_reserved_funding(db,pid)
+                except ValueError as e:
+                    message=str(e);unit=re.search(r'單位「([^」]+)」',message);source_label=re.search(r'經費類別「([^」]+)」',message);category_label=re.search(r'經費屬性「([^」]+)」',message)
+                    involved=[row['id'] for row in rows if (not unit or unit.group(1) in (row['from_owner'],row['to_owner'])) and (not source_label or row['source']==source_label.group(1)) and (not category_label or category_label.group(1) in (row['from_category'],row['to_category']))]
+                    if not involved:involved=ids
+                    reason=f'合計超過上限或占用圈存：{message}；涉及流用紀錄 '+', '.join(f'#{tid}' for tid in involved)
+                    db.execute('ROLLBACK TO transfer_bulk_execute_check');db.execute('RELEASE transfer_bulk_execute_check')
+                    return {'ok':True,'blocked':[{'id':tid,'reason':reason} for tid in involved]}
+            except Exception:
+                db.execute('ROLLBACK TO transfer_bulk_execute_check');db.execute('RELEASE transfer_bulk_execute_check')
+                raise
+            db.execute('ROLLBACK TO transfer_bulk_execute_check');db.execute('RELEASE transfer_bulk_execute_check')
+            if not a.get('confirm_missing_budget_items'):return {'ok':True,'confirmation_required':True,'count':len(ids),'missing_budget_items':[dict(source=k[0],to_owner=k[1],to_subject=k[2],to_category=k[3]) for k in targets]}
+            # Re-run the validated conversion in the surrounding transaction.
+            target_ids={}
+            for key in targets:
+                db.execute("INSERT INTO budget_items(project_id,source,owner,subject,category,initial) VALUES(?,?,?,?,?,0)",(pid,*key));target_ids[key]=db.execute("SELECT id FROM budget_items WHERE project_id=? AND source=? AND owner=? AND subject=? AND category=?",(pid,*key)).fetchone()['id']
+            for row in rows:
+                source=next(x for x in totals(db,pid) if (x['source'],x['owner'],x['subject'],x['category'])==(row['source'],row['from_owner'],row['from_subject'],row['from_category']))
+                target=db.execute("SELECT id FROM budget_items WHERE project_id=? AND source=? AND owner=? AND subject=? AND category=?",(pid,row['source'],row['to_owner'],row['to_subject'],row['to_category'])).fetchone()
+                db.execute("UPDATE transfers SET status='executed',from_budget_item_id=?,to_budget_item_id=? WHERE id=?",(source['id'],target['id'],row['id']))
+            validate_ledger_caps(db,pid);validate_reserved_funding(db,pid)
+            return {'ok':True,'count':len(ids)}
         if op=='transfer_bulk_delete':
             pid=int(a['project_id']);require_project(db,pid)
             ids=list(dict.fromkeys(int(x) for x in a.get('ids',[])))
@@ -1261,14 +1353,19 @@ def apply_action(a):
             plan_cap=round_amount(project['total_budget']); plan_budgets=sum(round_amount(x[0]) for x in db.execute("SELECT initial FROM budget_items WHERE project_id=?",(pid,))); plan_limit=min(plan_cap,plan_budgets)
             owner_spent={r['owner']:round_amount(r['total']) for r in db.execute("SELECT owner,SUM(amount) total FROM expenses WHERE project_id=? AND voided=0 GROUP BY owner",(pid,))}
             owner_limits={}
+            owner_reserved,combo_reserved=cross_unit_reservations(db,pid);combo_limits={}
             item_room={}
             item_reserved={}
             for item in totals(db,pid):
                 owner_limits[item['owner']]=owner_limits.get(item['owner'],0)+round_amount(item['budget'])
+                key=(item['owner'],item['source'],item['category']);combo_limits[key]=combo_limits.get(key,0)+round_amount(item['budget'])
                 item_room[item['id']]=round_amount(item['balance'])-round_amount(item['reserved_out'])
                 item_reserved[item['id']]=round_amount(item['reserved_out'])
             source_spent={r['source']:round_amount(r['total']) for r in db.execute("SELECT source,SUM(amount) total FROM expenses WHERE project_id=? AND voided=0 GROUP BY source",(pid,))}
             source_limits={r['source']:round_amount(r['total']) for r in db.execute("SELECT source,SUM(initial) total FROM budget_items WHERE project_id=? GROUP BY source",(pid,))}
+            for owner,amount in owner_reserved.items():owner_limits[owner]=owner_limits.get(owner,0)-amount
+            for key,amount in combo_reserved.items():combo_limits[key]=combo_limits.get(key,0)-amount
+            combo_spent={tuple(r[k] for k in ('owner','source','category')):round_amount(r['total']) for r in db.execute("SELECT owner,source,category,SUM(amount) total FROM expenses WHERE project_id=? AND voided=0 GROUP BY owner,source,category",(pid,))}
             for i,r in enumerate(rows,1):
                 source=(r.get('source') or '').strip(); owner=(r.get('owner') or '').strip(); subject=(r.get('subject') or '').strip(); category=(r.get('category') or '').strip(); total=input_amount(r.get('amount'),f'第 {i} 列核銷金額')
                 if not db.execute("SELECT 1 FROM project_options WHERE project_id=? AND kind='source' AND value=?",(pid,source)).fetchone() or not owner or not subject:raise ValueError(f'第 {i} 列需填妥有效的經費類別、單位及科目')
@@ -1291,10 +1388,13 @@ def apply_action(a):
                 if all_spent+total>plan_limit:raise ValueError(f'第 {i} 列會超過全專案核銷上限')
                 if source_spent.get(source,0)+total>source_limits.get(source,0):raise ValueError(f'第 {i} 列會超過「{source}」類別的預算上限')
                 if owner_spent.get(owner,0)+total>owner_limits.get(owner,0):raise ValueError(f'第 {i} 列會超過單位「{owner}」核銷上限')
+                combo=(owner,source,category)
+                if combo_spent.get(combo,0)+total>combo_limits.get(combo,0):raise ValueError(f'第 {i} 列會超過單位「{owner}」／經費類別「{source}」／經費屬性「{category}」核銷上限')
                 if item_room.get(item['id'],0)<0 or total>max(0,item_room.get(item['id'],0)):
                     if item_reserved.get(item['id'],0):raise ValueError(f'第 {i} 列會占用規劃流用圈存額度；此預算明細最多可核銷 {max(0,item_room.get(item["id"],0)):,} 元')
                 item_room[item['id']]=item_room.get(item['id'],0)-total
                 all_spent+=total;source_spent[source]=source_spent.get(source,0)+total;owner_spent[owner]=owner_spent.get(owner,0)+total
+                combo_spent[combo]=combo_spent.get(combo,0)+total
                 prepared.append((i,description,submitted,voucher,owner,source,subject,category,item['id'],total,str(r.get('note') or ''),payees))
             batch_ids={}
             for index,description,submitted,voucher,owner,source,subject,category,item_id,total,note,payees in prepared:
@@ -2066,7 +2166,17 @@ class Handler(BaseHTTPRequestHandler):
                 self.send(200,json.dumps({'rows':parsed,'filenames':names,'errors':errors,'new_options':new_options},ensure_ascii=False)); return
             elif self.path=='/api/preview-expenses':
                 payload=json.loads(raw.decode('utf-8')); mapped=EXPENSE_IMPORT_HEADERS
-                with connect() as db: project=require_project(db,int(payload.get('project_id',0)))
+                pid=int(payload.get('project_id',0))
+                with connect() as db:
+                    project=require_project(db,pid);base_items=totals(db,pid);owner_res,combo_res=cross_unit_reservations(db,pid)
+                    project_left=min(round_amount(project['total_budget']),sum(round_amount(x['initial']) for x in base_items))-sum(x['spent'] for x in base_items)
+                    source_left={};owner_left={};combo_left={}
+                    for x in base_items:
+                        source_left[x['source']]=source_left.get(x['source'],0)+round_amount(x['initial'])-x['spent']
+                        owner_left[x['owner']]=owner_left.get(x['owner'],0)+x['budget']-x['spent']
+                        key=(x['owner'],x['source'],x['category']);combo_left[key]=combo_left.get(key,0)+x['budget']-x['spent']
+                    for k,v in owner_res.items():owner_left[k]=owner_left.get(k,0)-v
+                    for k,v in combo_res.items():combo_left[k]=combo_left.get(k,0)-v
                 rows=[];names=[];errors=[];warnings=[]
                 for f in payload.get('files',[]):
                     names.append(f['name'])
@@ -2098,7 +2208,13 @@ class Handler(BaseHTTPRequestHandler):
                                 if missing_budget_item:
                                     source=str(row.get('source') or '').strip();owner=str(row.get('owner') or '').strip();subject=str(row.get('subject') or '').strip();category=str(row.get('category') or '').strip()
                                     warnings.append(f'{f["name"]} 第 {i} 列：找不到經費類別「{source}」、單位「{owner}」、預算科目「{subject}」、經費屬性「{category}」完全相符的預算明細。')
-                                rows.append({'_file':f['name'],'_row_number':i,'batch_description':str(row.get('batch_description') or '').strip(),'submitted_date':submitted,'voucher_date':voucher,'source':str(row.get('source') or '').strip(),'owner':str(row.get('owner') or '').strip(),'subject':str(row.get('subject') or '').strip(),'category':str(row.get('category') or '').strip(),'amount':total,'note':str(row.get('note') or ''),'payees':payees,'missing_budget_item':missing_budget_item})
+                                source=str(row.get('source') or '').strip();owner=str(row.get('owner') or '').strip();category=str(row.get('category') or '').strip();combo=(owner,source,category)
+                                if total>project_left:raise ValueError(f'超過全專案核銷上限；目前最多可核銷 {max(0,project_left):,} 元')
+                                if total>source_left.get(source,0):raise ValueError(f'超過「{source}」經費類別上限；目前最多可核銷 {max(0,source_left.get(source,0)):,} 元')
+                                if total>owner_left.get(owner,0):raise ValueError(f'超過單位「{owner}」核銷上限；目前最多可核銷 {max(0,owner_left.get(owner,0)):,} 元')
+                                if total>combo_left.get(combo,0):raise ValueError(f'超過單位「{owner}」／經費類別「{source}」／經費屬性「{category}」核銷上限；目前最多可核銷 {max(0,combo_left.get(combo,0)):,} 元')
+                                project_left-=total;source_left[source]=source_left.get(source,0)-total;owner_left[owner]=owner_left.get(owner,0)-total;combo_left[combo]=combo_left.get(combo,0)-total
+                                rows.append({'_file':f['name'],'_row_number':i,'batch_description':str(row.get('batch_description') or '').strip(),'submitted_date':submitted,'voucher_date':voucher,'source':source,'owner':owner,'subject':str(row.get('subject') or '').strip(),'category':category,'amount':total,'note':str(row.get('note') or ''),'payees':payees,'missing_budget_item':missing_budget_item})
                             except Exception as e:errors.append(f"{f['name']} 第 {i} 列：{e}")
                     except Exception as e:errors.append(f"{f['name']}：{e}")
                 self.send(200,json.dumps({'rows':rows,'filenames':names,'errors':errors,'warnings':warnings},ensure_ascii=False));return
