@@ -1,146 +1,205 @@
-<!DOCTYPE html><html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>經費管理系統 Gmail SMTP 設定教學</title><style>
-:root{color-scheme:dark;--bg:#141413;--paper:#201f1c;--ink:#eeeae1;--muted:#aaa69b;--line:#45423c;--accent:#d97757;--soft:#332820;--warn:#e6b56c;--warn-bg:#30271d;--code:#2b2924}
-*{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.8 "Noto Sans TC","Microsoft JhengHei",system-ui,sans-serif}.layout{max-width:1120px;margin:auto;padding:28px 20px 56px;display:grid;grid-template-columns:230px minmax(0,1fr);gap:28px}nav{position:sticky;top:20px;align-self:start;max-height:calc(100vh - 40px);overflow:auto;border-right:1px solid var(--line);padding:12px 16px 12px 0;font-size:14px}nav strong{display:block;margin:0 8px 8px}nav ul{list-style:none;margin:0;padding:0}nav a{display:block;padding:5px 8px;color:var(--muted);text-decoration:none;border-radius:5px}nav a:hover,nav a:focus-visible{background:var(--soft);color:var(--ink)}main{min-width:0;background:var(--paper);border:1px solid var(--line);border-radius:10px;padding:38px 48px 52px}header{padding-bottom:22px;border-bottom:3px solid var(--accent)}h1{font-size:2rem;line-height:1.35;margin:0}h2{font-size:1.45rem;line-height:1.45;margin:2.8rem 0 .85rem;padding-left:12px;border-left:5px solid var(--accent);scroll-margin-top:16px}h3{font-size:1.12rem;margin:1.8rem 0 .5rem}p,li{max-width:760px}main p,main li{text-align:justify;text-justify:inter-ideograph}p{margin:.8rem 0}ul,ol{padding-left:1.6rem;margin:.7rem 0 1rem}li{margin:.35rem 0}a{color:var(--accent)}code{font-family:Consolas,monospace;background:var(--code);padding:.1em .35em;border-radius:4px}.callout{padding:12px 16px;background:var(--warn-bg);border-left:4px solid var(--warn);border-radius:0 6px 6px 0}.intro{font-size:1.05rem;border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:8px;background:var(--paper);padding:14px 16px;color:var(--ink)}.tag{display:inline-block;border:1px solid var(--line);border-radius:999px;padding:2px 10px;color:var(--muted);font-size:.85rem}.steps{counter-reset:step;list-style:none;padding:0}.steps li{counter-increment:step;position:relative;padding-left:2.4rem}.steps li::before{content:counter(step);position:absolute;left:0;top:.15rem;width:1.65rem;height:1.65rem;display:grid;place-items:center;background:var(--soft);color:var(--accent);border-radius:50%;font-weight:700}.footer{margin-top:3rem;padding-top:1rem;border-top:1px solid var(--line);color:var(--muted);font-size:.9rem}blockquote{margin:1.2rem 0;padding:.7rem 1.1rem;background:var(--warn-bg);border-left:4px solid var(--warn);border-radius:0 4px 4px 0}blockquote p{margin:.3rem 0}.tbl{overflow-x:auto}table{border-collapse:collapse;width:100%}th,td{border:1px solid var(--line);padding:.55rem .8rem;text-align:left;vertical-align:top}th{background:var(--soft)}
-@media(max-width:800px){.layout{grid-template-columns:1fr;gap:12px;padding:12px}nav{position:static;max-height:none;border-right:0;border-bottom:1px solid var(--line);padding:8px 0 14px}nav ul{display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr))}main{padding:25px 22px 36px}h1{font-size:1.65rem}}
-@media print{@page{size:A4;margin:17mm}body{background:#fff;color:#111;font-size:11pt}.layout{display:block;max-width:none;padding:0}nav{display:none}main{border:0;border-radius:0;padding:0}header{break-after:avoid}h2,h3{break-after:avoid}a{color:inherit;text-decoration:none}.callout{background:#f7f2e5} .footer{break-inside:avoid}}
-</style></head><body><div class="layout"><nav aria-label="章節目錄"><strong>章節目錄</strong><ul><li><a href="#sec-1">1. 開始前準備</a></li><li><a href="#sec-2">2. Google 帳戶安全性設定</a></li><li><a href="#sec-3">3. 啟用兩步驟驗證</a></li><li><a href="#sec-4">4. 建立應用程式密碼</a></li><li><a href="#sec-5">5. 設定 Gmail SMTP</a></li><li><a href="#sec-6">6. 寄送測試信</a></li><li><a href="#sec-7">7. 常見問題</a></li><li><a href="#sec-8">8. 附註</a></li></ul></nav><main><header><h1>經費管理系統 Gmail SMTP 設定教學</h1></header>
-<p class="intro">本手冊帶你準備一個專門供系統寄信使用的 Google 帳號，取得「應用程式密碼」，再把 Gmail SMTP 設定填入經費管理系統，最後寄出測試信確認設定成功。</p>
-<p><strong>SMTP</strong> 是系統寄出電子郵件時使用的郵件服務連線方式。你的經費管理系統使用 SMTP 寄送 Email 經費報告；SMTP 設定一次後，全系統共用。系統目前以帳號與密碼登入 SMTP，沒有「透過 Google 登入」的授權流程；使用 Gmail 時，需使用應用程式密碼，不能填 Google 帳戶的一般登入密碼。Google 建議優先使用「透過 Google 登入」；本教學說明的是配合目前系統 SMTP 登入方式的設定。</p>
-<h2 id="sec-1">1. 開始前準備</h2>
-<p>你需要：</p>
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="為經費管理系統設定 Gmail SMTP：啟用兩步驟驗證、建立應用程式密碼、填入寄件設定並寄送測試信。">
+<title>Gmail SMTP 設定教學</title>
+<link rel="stylesheet" href="assets/manual.css">
+</head>
+<body>
+<a class="skip-link" href="#main">跳到主要內容</a>
+<div class="layout">
+<nav class="toc" aria-label="章節目錄"><span class="toc-title">章節目錄</span><ol>
+<li><a href="#sec-1"><span>1</span>開始前準備</a></li>
+<li><a href="#sec-2"><span>2</span>開啟帳戶安全性設定</a></li>
+<li><a href="#sec-3"><span>3</span>啟用兩步驟驗證</a></li>
+<li><a href="#sec-4"><span>4</span>建立應用程式密碼</a></li>
+<li><a href="#sec-5"><span>5</span>填入寄件設定</a></li>
+<li><a href="#sec-6"><span>6</span>寄送測試信</a></li>
+<li><a href="#sec-7"><span>7</span>常見問題</a></li>
+</ol></nav>
+
+<main id="main" tabindex="-1">
+<header class="doc-head">
+<span class="tag">設定教學</span>
+<h1>經費管理系統 Gmail SMTP 設定教學</h1>
+<p class="lead">準備一個專門寄信用的 Google 帳號，取得「應用程式密碼」，把 Gmail SMTP 設定填入系統，最後寄出測試信確認成功。</p>
+<ol class="roadmap" aria-label="設定流程">
+<li><a href="#sec-3">兩步驟驗證<small>Google 帳戶</small></a></li>
+<li><a href="#sec-4">應用程式密碼<small>Google 帳戶</small></a></li>
+<li><a href="#sec-5">填入寄件設定<small>經費管理系統</small></a></li>
+<li><a href="#sec-6">寄送測試信<small>經費管理系統</small></a></li>
+</ol>
+</header>
+<div class="summary" aria-label="閱讀摘要"><p><b>適用時機：</b>第一次設定 Gmail 寄件，或應用程式密碼失效。</p><p><b>事前準備：</b>可登入的 Google 帳戶、已啟動的經費管理系統。</p></div>
+
+<p><strong>SMTP</strong> 是系統寄出電子郵件時使用的郵件服務連線方式。系統用 SMTP 寄送 Email 經費報告；SMTP 設定一次後，全系統共用。</p>
+<div class="callout"><b>為什麼要用「應用程式密碼」？</b>
+<p>系統目前以帳號與密碼登入 SMTP，沒有「透過 Google 登入」的授權流程。使用 Gmail 時，需使用應用程式密碼，不能填 Google 帳戶的一般登入密碼。Google 建議優先使用「透過 Google 登入」；本教學說明的是配合目前系統 SMTP 登入方式的設定。</p>
+</div>
+
+<section id="sec-1">
+<h2><span class="no">1</span>開始前準備</h2>
+<p>確認寄信用帳戶、系統與必要套件已準備好。</p>
 <ul>
-<li>一個可登入的 Google 帳戶。建議使用專門供系統寄信的帳戶，並先確認自己能登入 Gmail 收信。</li>
-<li>經費管理系統已在這台 Windows 電腦啟動。</li>
-<li>系統已安裝 <code>keyring</code> 安全憑證套件。若之前在啟動時略過安裝，可依下方說明使用「Install-optional-packages.bat」安裝。</li>
+<li><strong>一個可登入的 Google 帳戶。</strong>建議使用專門供系統寄信的帳戶，並先確認自己能登入 Gmail 收信。</li>
+<li><strong>經費管理系統已在這台 Windows 電腦啟動。</strong></li>
+<li><strong>系統已安裝 <code>keyring</code> 安全憑證套件。</strong>若之前在啟動時略過安裝，請依下方步驟安裝。</li>
 </ul>
-<p>使用選用套件安裝工具前，先檢查專案資料夾是否已有 <code>.venv</code> 資料夾。若沒有，先執行「啟動經費管理.bat」讓啟動流程建立環境，待系統啟動後關閉；若已有 <code>.venv</code>，關閉系統即可。接著雙擊專案資料夾中的 <code>Install-optional-packages.bat</code>，依選單選擇 Email（<code>keyring</code>），完成後重新啟動系統。</p>
-<blockquote>
+<h3>安裝 keyring（已安裝可略過）</h3>
+<ol class="steps">
+<li>檢查專案資料夾是否已有 <code>.venv</code> 資料夾。<p>若沒有，先執行「啟動經費管理.bat」讓啟動流程建立環境，待系統啟動後關閉；若已有，關閉系統即可。</p></li>
+<li>雙擊專案資料夾中的 <code>Install-optional-packages.bat</code>，依選單選擇 Email（<code>keyring</code>）。</li>
+<li>完成後重新啟動系統。</li>
+</ol>
+<div class="callout danger"><b>保護應用程式密碼</b>
 <p>應用程式密碼可讓系統以你的 Google 帳戶寄信。請勿把它貼到聊天、文件或程式碼中，也不要交給其他人。</p>
-</blockquote>
-<h2 id="sec-2">2. Google 帳戶安全性設定</h2>
-<ol>
-<li>開啟瀏覽器，例如 Chrome 或 Edge。</li>
-<li>在網址列輸入 <a href="https://myaccount.google.com/security">Google 帳戶安全性設定</a>，再按 <strong>Enter</strong>。</li>
-<li>登入預計用來寄信的 Google 帳戶。你會看到 Google 帳戶的安全性設定頁面。</li>
-</ol>
-<p><strong>確認點：</strong>頁面右上角顯示的是你要用來寄信的帳戶。若不是，請先切換到正確帳戶。</p>
-<h2 id="sec-3">3. 啟用兩步驟驗證</h2>
-<p><strong>兩步驟驗證</strong>是登入時除了密碼外，再用手機、通行金鑰或安全金鑰確認身分的保護方式。Google 要求帳戶先開啟兩步驟驗證，才能建立應用程式密碼；但開啟兩步驟驗證不代表所有帳戶都能使用應用程式密碼。<a href="https://support.google.com/mail/answer/185839?hl=zh-Hant">Google 說明：開啟兩步驟驗證</a></p>
-<ol>
-<li>在 Google 帳戶的「安全性」頁面，找到「如何登入 Google」區域。</li>
-<li>點選「兩步驟驗證」。</li>
-<li>依頁面指示設定第二種登入方式。請使用你能持續取用的手機或安全金鑰。</li>
-<li>設定完成後，回到帳戶安全性頁面。你會看到兩步驟驗證已開啟。</li>
-</ol>
-<p><strong>確認點：</strong>「兩步驟驗證」頁面顯示已啟用，且你知道如何完成第二步登入。</p>
-<p>若這是公司或學校管理的帳戶，請先確認管理政策允許使用應用程式密碼；帳戶限制詳見第 7 節「常見問題」。</p>
-<h2 id="sec-4">4. 建立應用程式密碼</h2>
-<p><strong>應用程式密碼</strong>是 Google 為特定應用程式產生的密碼。它和 Google 帳戶的一般密碼不同；本系統的 SMTP 登入欄位要填這組密碼。請只在 Google 帳戶提供此功能且管理政策允許時使用。</p>
-<ol>
-<li>在瀏覽器網址列輸入 <a href="https://myaccount.google.com/apppasswords">Google 應用程式密碼頁面</a>，再按 <strong>Enter</strong>。</li>
-<li>如果 Google 要求登入或再次確認身分，依畫面完成驗證。</li>
-<li>若頁面提供名稱欄位，輸入容易辨認的名稱，例如「經費管理系統」。Google 帳戶頁面可能會調整欄位或操作文字，請依目前畫面指示操作。</li>
-<li>點選「建立」。</li>
-<li>Google 會顯示一組應用程式密碼。立即複製或暫時記下這組密碼，接著切回經費管理系統使用。</li>
-</ol>
-<blockquote>
-<p>Google 通常只在建立時顯示這組密碼，離開頁面後無法再次查看；若遺失，可回到應用程式密碼頁面撤銷舊密碼並建立新密碼。若你找不到「應用程式密碼」，請看第 7 節「常見問題」。</p>
-</blockquote>
-<p><strong>確認點：</strong>你已取得應用程式密碼，並確認沒有把它誤認成 Google 帳戶的一般密碼。Google 的應用程式密碼通常以 16 個字元顯示；輸入系統時可直接貼上，不必手動加入空格。<a href="https://support.google.com/accounts/answer/185833?hl=zh-Hant">Google 說明：使用應用程式密碼</a></p>
-<h2 id="sec-5">5. 設定 Gmail SMTP</h2>
-<p>Gmail SMTP 伺服器為 <code>smtp.gmail.com</code>。本教學採用 <strong>587 連接埠與 STARTTLS</strong>；這種安全方式會在連線後啟用加密。Gmail 也支援 465 連接埠搭配 SSL/TLS，但本系統預設值為 587 與 STARTTLS。<a href="https://support.google.com/mail/answer/22370?hl=zh-Hant">Google 說明：Gmail SMTP 連線方式</a></p>
-<ol>
-<li>
-<p>在經費管理系統的瀏覽器頁面，開啟任一專案。</p>
-</li>
-<li>
-<p>點選左側「Email 經費報告」。</p>
-</li>
-<li>
-<p>展開「寄件設定」。你會看到 SMTP 伺服器、連接埠、安全方式等欄位。</p>
-</li>
-<li>
-<p>依照下表填寫：</p>
-<div class="tbl"><table>
-<thead>
-<tr>
-<th>系統欄位</th>
-<th>請填入</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>SMTP 伺服器</td>
-<td><code>smtp.gmail.com</code></td>
-</tr>
-<tr>
-<td>連接埠</td>
-<td><code>587</code></td>
-</tr>
-<tr>
-<td>連線安全方式</td>
-<td><code>STARTTLS（常見連接埠 587）</code></td>
-</tr>
-<tr>
-<td>登入帳號</td>
-<td>完整 Gmail 地址，例如 <code>name@gmail.com</code></td>
-</tr>
-<tr>
-<td>寄件 Email</td>
-<td>同一個完整 Gmail 地址</td>
-</tr>
-<tr>
-<td>寄件者顯示名稱</td>
-<td>收件人看到的名稱，例如「經費管理系統」</td>
-</tr>
-<tr>
-<td>密碼／應用程式專用密碼</td>
-<td>第 3 步建立的應用程式密碼</td>
-</tr>
-</tbody>
-</table></div>
-</li>
-<li>
-<p>點選「儲存寄件設定」。畫面會顯示設定已儲存。</p>
-</li>
-</ol>
-<blockquote>
-<p>請勿把 Google 帳戶的一般登入密碼填入「密碼／應用程式專用密碼」欄位。</p>
-</blockquote>
-<p><strong>確認點：</strong>SMTP 伺服器、連接埠、安全方式與兩個 Email 欄位都已填好，應用程式密碼也已儲存。</p>
-<p>系統會把寄件密碼存放在這台 Windows 電腦的安全憑證區，不會存進 SQLite。同一 Windows 使用者帳戶下搬移或更名專案資料夾可沿用設定；複製到其他電腦時，需在新電腦重新輸入密碼。Google 帳戶密碼變更後，Google 可能會撤銷既有應用程式密碼；如遇登入失敗，可建立新的應用程式密碼並重新儲存。</p>
-<h2 id="sec-6">6. 寄送測試信</h2>
-<ol>
-<li>在「測試信寄給」欄位輸入一個你能收信的 Email 地址。</li>
-<li>點選「儲存並寄送測試信」。此操作會實際寄出一封測試郵件至「測試信寄給」欄位的地址，請確認地址正確且你有權寄送。</li>
-<li>等待畫面回覆結果。若顯示測試成功，請到收件匣查看測試信；也請檢查垃圾郵件資料夾。</li>
-</ol>
-<p><strong>確認點：</strong>畫面顯示寄件設定測試成功，且測試信已送達。接著就能使用系統的 Email 經費報告功能。</p>
-<h2 id="sec-7">7. 常見問題</h2>
-<h3>找不到「應用程式密碼」</h3>
-<p><strong>現象：</strong>Google 帳戶頁面沒有「應用程式密碼」選項。</p>
-<p><strong>原因：</strong>Google 說明指出，若帳戶的兩步驟驗證只使用安全金鑰、帳戶由公司或學校管理，或帳戶已啟用進階保護專案，可能不會提供應用程式密碼選項。<a href="https://support.google.com/accounts/answer/185833?hl=zh-Hant">Google 說明：應用程式密碼的限制</a></p>
-<p><strong>解法：</strong>確認兩步驟驗證已設定；若帳戶由公司或學校管理，請洽詢管理員是否允許應用程式密碼或 SMTP 寄信。若 Google 帳戶不提供應用程式密碼，本系統目前無法使用 Google 授權登入替代；請改用管理者允許且支援 SMTP 帳號密碼驗證的郵件服務，再依服務提供者的設定資料填入系統。<a href="https://support.google.com/accounts/answer/7539956?hl=zh-Hant">Google 說明：進階保護專案常見問題</a></p>
-<h3>測試時顯示帳號驗證遭拒或密碼錯誤</h3>
-<p><strong>現象：</strong>系統顯示 SMTP 帳號驗證遭拒、使用者名稱或密碼不接受。</p>
-<p><strong>原因：</strong>常見原因是誤填 Google 帳戶的一般密碼、應用程式密碼貼錯，或 Google 已撤銷該應用程式密碼。</p>
-<p><strong>解法：</strong>回到 Google 應用程式密碼頁面，建立新的應用程式密碼，再回到「寄件設定」重新輸入並儲存。登入帳號與寄件 Email 都填完整 Gmail 地址。</p>
-<h3>系統提示尚未安裝安全憑證套件</h3>
-<p><strong>現象：</strong>儲存密碼或測試寄信時，系統提示安全憑證套件未安裝。</p>
-<p><strong>原因：</strong>系統需要 <code>keyring</code> 將寄件密碼安全存放在 Windows 憑證區。</p>
-<p><strong>解法：</strong>先檢查專案資料夾是否已有 <code>.venv</code>。若沒有，先執行「啟動經費管理.bat」建立環境，待系統啟動後關閉；若已有，關閉系統即可。再雙擊專案資料夾中的 <code>Install-optional-packages.bat</code>，依選單選擇 Email（<code>keyring</code>），完成後重新啟動系統。</p>
-<h3>測試信沒有出現在收件匣</h3>
-<p><strong>現象：</strong>系統顯示寄送成功，但收件匣看不到測試信。</p>
-<p><strong>原因：</strong>郵件可能被分類到垃圾郵件或其他收件匣分類。</p>
-<p><strong>解法：</strong>先檢查垃圾郵件資料夾與其他郵件分類，再確認「測試信寄給」欄位填的是正確地址。</p>
-<h3>測試時顯示連線失敗或逾時</h3>
-<p><strong>現象：</strong>系統無法連上郵件伺服器，或等待後顯示連線逾時。</p>
-<p><strong>原因：</strong>伺服器、連接埠或安全方式填錯，或目前網路不允許連接 Gmail SMTP。</p>
-<p><strong>解法：</strong>確認欄位為 <code>smtp.gmail.com</code>、<code>587</code> 與 <code>STARTTLS</code>。若仍失敗，請洽詢網路管理者，確認這台電腦所在的網路是否允許連線至 Gmail SMTP。</p>
-<h2 id="sec-8">8. 附註</h2>
+</div>
+<h3>使用範圍與限制</h3>
 <ul>
 <li>本系統目前採用 SMTP 帳號與密碼登入，沒有 Google 帳戶跳轉授權流程；因此本教學在 Google 帳戶可用時使用應用程式密碼。</li>
 <li>Gmail SMTP 設定及 Google 帳戶的可用選項可能隨帳戶類型與管理政策不同而異。本教學以一般可建立應用程式密碼的 Google 帳戶為前提。</li>
 <li>若你使用公司或學校的 Google Workspace 帳戶，請先確認管理員允許該帳戶透過 SMTP 寄信。</li>
 </ul>
-</main></div><script>document.querySelectorAll('.copy').forEach(b=>b.onclick=()=>navigator.clipboard.writeText(b.parentElement.querySelector('code').innerText));</script></body></html>
+</section>
+
+<section id="sec-2">
+<h2><span class="no">2</span>開啟 Google 帳戶安全性設定</h2>
+<p>確認要寄信的 Google 帳戶與安全性設定。</p>
+<ol class="steps">
+<li>開啟瀏覽器，例如 Chrome 或 Edge。</li>
+<li>前往 <a href="https://myaccount.google.com/security" target="_blank" rel="noopener">Google 帳戶安全性設定</a>。</li>
+<li>登入預計用來寄信的 Google 帳戶。<p>你會看到 Google 帳戶的安全性設定頁面。</p></li>
+</ol>
+<label class="check"><input type="checkbox" data-check="c2"><span class="check-body"><b>確認點</b><span>頁面右上角顯示的是要用來寄信的帳戶。若不是，請先切換到正確帳戶。</span></span></label>
+</section>
+
+<section id="sec-3">
+<h2><span class="no">3</span>啟用兩步驟驗證</h2>
+<p><strong>兩步驟驗證</strong>是登入時除了密碼外，再用手機、通行金鑰或安全金鑰確認身分的保護方式。Google 要求帳戶先開啟兩步驟驗證，才能建立應用程式密碼；但開啟兩步驟驗證不代表所有帳戶都能使用應用程式密碼。（<a href="https://support.google.com/mail/answer/185839?hl=zh-Hant" target="_blank" rel="noopener">Google 說明：開啟兩步驟驗證</a>）</p>
+<ol class="steps">
+<li>在 Google 帳戶的「安全性」頁面，找到「如何登入 Google」區域。</li>
+<li>點選「兩步驟驗證」。</li>
+<li>依頁面指示設定第二種登入方式。<p>請使用你能持續取用的手機或安全金鑰。</p></li>
+<li>設定完成後，回到帳戶安全性頁面。<p>你會看到兩步驟驗證已開啟。</p></li>
+</ol>
+<label class="check"><input type="checkbox" data-check="c3"><span class="check-body"><b>確認點</b><span>「兩步驟驗證」頁面顯示已啟用，且你知道如何完成第二步登入。</span></span></label>
+<p>若這是公司或學校管理的帳戶，請先確認管理政策允許使用應用程式密碼；帳戶限制詳見 <a href="#sec-7">第 7 節「常見問題」</a>。</p>
+</section>
+
+<section id="sec-4">
+<h2><span class="no">4</span>建立應用程式密碼</h2>
+<p><strong>應用程式密碼</strong>是 Google 為特定應用程式產生的密碼。它和 Google 帳戶的一般密碼不同；本系統的 SMTP 登入欄位要填這組密碼。請只在 Google 帳戶提供此功能且管理政策允許時使用。</p>
+<ol class="steps">
+<li>前往 <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noopener">Google 應用程式密碼頁面</a>。</li>
+<li>如果 Google 要求登入或再次確認身分，依畫面完成驗證。</li>
+<li>若頁面提供名稱欄位，輸入容易辨認的名稱，例如「經費管理系統」。<p>Google 帳戶頁面可能會調整欄位或操作文字，請依目前畫面指示操作。</p></li>
+<li>點選「建立」。</li>
+<li>Google 會顯示一組應用程式密碼。<p>立即複製或暫時記下這組密碼，接著切回經費管理系統使用。</p></li>
+</ol>
+<div class="callout warn"><b>密碼只會顯示一次</b>
+<p>Google 通常只在建立時顯示這組密碼，離開頁面後無法再次查看；若遺失，可回到應用程式密碼頁面撤銷舊密碼並建立新密碼。找不到「應用程式密碼」時，請看 <a href="#sec-7">第 7 節「常見問題」</a>。</p>
+</div>
+<label class="check"><input type="checkbox" data-check="c4"><span class="check-body"><b>確認點</b><span>已取得應用程式密碼，且沒有把它誤認成 Google 帳戶的一般密碼。應用程式密碼通常以 16 個字元顯示；輸入系統時可直接貼上，不必手動加入空格。</span></span></label>
+<p>（<a href="https://support.google.com/accounts/answer/185833?hl=zh-Hant" target="_blank" rel="noopener">Google 說明：使用應用程式密碼</a>）</p>
+</section>
+
+<section id="sec-5">
+<h2><span class="no">5</span>在系統填入寄件設定</h2>
+<p>Gmail SMTP 伺服器為 <code>smtp.gmail.com</code>。本教學採用 <strong>587 連接埠與 STARTTLS</strong>，這種安全方式會在連線後啟用加密。Gmail 也支援 465 連接埠搭配 SSL/TLS，但本系統預設值為 587 與 STARTTLS。（<a href="https://support.google.com/mail/answer/22370?hl=zh-Hant" target="_blank" rel="noopener">Google 說明：Gmail SMTP 連線方式</a>）</p>
+<ol class="steps">
+<li>在經費管理系統的瀏覽器頁面，開啟任一專案。</li>
+<li>點選左側 <span class="ui">Email 經費報告</span>。</li>
+<li>展開 <span class="ui">寄件設定</span>。<p>你會看到 SMTP 伺服器、連接埠、安全方式等欄位。</p></li>
+<li>依照下表填寫。</li>
+<li>點選 <span class="ui">儲存寄件設定</span>。<p>畫面會顯示設定已儲存。</p></li>
+</ol>
+<div class="tbl"><table>
+<thead><tr><th>系統欄位</th><th>請填入</th></tr></thead>
+<tbody>
+<tr><td>SMTP 伺服器</td><td><div class="val"><code>smtp.gmail.com</code><button type="button" class="copy" data-copy="smtp.gmail.com" aria-label="複製 SMTP 伺服器">複製</button></div></td></tr>
+<tr><td>連接埠</td><td><div class="val"><code>587</code><button type="button" class="copy" data-copy="587" aria-label="複製連接埠">複製</button></div></td></tr>
+<tr><td>連線安全方式</td><td>選擇 <code>STARTTLS（常見連接埠 587）</code></td></tr>
+<tr><td>登入帳號</td><td>完整 Gmail 地址，例如 <code>name@gmail.com</code></td></tr>
+<tr><td>寄件 Email</td><td>同一個完整 Gmail 地址</td></tr>
+<tr><td>寄件者顯示名稱</td><td>收件人看到的名稱，例如「經費管理系統」</td></tr>
+<tr><td>密碼／應用程式專用密碼</td><td><a href="#sec-4">第 4 節</a>建立的應用程式密碼</td></tr>
+</tbody></table></div>
+<div class="callout danger"><b>不要填一般登入密碼</b>
+<p>請勿把 Google 帳戶的一般登入密碼填入「密碼／應用程式專用密碼」欄位。</p>
+</div>
+<label class="check"><input type="checkbox" data-check="c5"><span class="check-body"><b>確認點</b><span>SMTP 伺服器、連接埠、安全方式與兩個 Email 欄位都已填好，應用程式密碼也已儲存。</span></span></label>
+<h3>密碼存放在哪裡？</h3>
+<ul>
+<li>系統會把寄件密碼存放在這台 Windows 電腦的安全憑證區，不會存進 SQLite。</li>
+<li>同一 Windows 使用者帳戶下搬移或更名專案資料夾可沿用設定；複製到其他電腦時，需在新電腦重新輸入密碼。</li>
+<li>Google 帳戶密碼變更後，Google 可能會撤銷既有應用程式密碼；如遇登入失敗，可建立新的應用程式密碼並重新儲存。</li>
+</ul>
+</section>
+
+<section id="sec-6">
+<h2><span class="no">6</span>寄送測試信</h2>
+<p>寄送測試信，確認目前設定能正常使用。</p>
+<ol class="steps">
+<li>在 <span class="ui">測試信寄給</span> 欄位輸入一個你能收信的 Email 地址。</li>
+<li>點選 <span class="ui">儲存並寄送測試信</span>。<p>此操作會實際寄出一封測試郵件至該地址，請確認地址正確且你有權寄送。</p></li>
+<li>等待畫面回覆結果。<p>若顯示測試成功，請到收件匣查看測試信；也請檢查垃圾郵件資料夾。</p></li>
+</ol>
+<label class="check"><input type="checkbox" data-check="c6"><span class="check-body"><b>確認點</b><span>畫面顯示寄件設定測試成功，且測試信已送達。接著就能使用系統的 Email 經費報告功能。</span></span></label>
+<div class="progress-note" aria-live="polite"><span id="progressText">已完成 0／5 個確認點</span><button type="button" class="copy" id="resetChecks">清除勾選</button></div>
+</section>
+
+<section id="sec-7">
+<h2><span class="no">7</span>常見問題</h2>
+<p>依顯示的現象查找原因與解法。</p>
+<details class="faq">
+<summary>找不到「應用程式密碼」</summary>
+<div><dl>
+<dt>現象</dt><dd>Google 帳戶頁面沒有「應用程式密碼」選項。</dd>
+<dt>原因</dt><dd>Google 說明指出，若帳戶的兩步驟驗證只使用安全金鑰、帳戶由公司或學校管理，或帳戶已啟用進階保護專案，可能不會提供應用程式密碼選項。（<a href="https://support.google.com/accounts/answer/185833?hl=zh-Hant" target="_blank" rel="noopener">Google 說明：應用程式密碼的限制</a>）</dd>
+<dt>解法</dt><dd>確認兩步驟驗證已設定；若帳戶由公司或學校管理，請洽詢管理員是否允許應用程式密碼或 SMTP 寄信。若 Google 帳戶不提供應用程式密碼，本系統目前無法使用 Google 授權登入替代；請改用管理者允許且支援 SMTP 帳號密碼驗證的郵件服務，再依服務提供者的設定資料填入系統。（<a href="https://support.google.com/accounts/answer/7539956?hl=zh-Hant" target="_blank" rel="noopener">Google 說明：進階保護專案常見問題</a>）</dd>
+</dl></div>
+</details>
+<details class="faq">
+<summary>測試時顯示帳號驗證遭拒或密碼錯誤</summary>
+<div><dl>
+<dt>現象</dt><dd>系統顯示 SMTP 帳號驗證遭拒、使用者名稱或密碼不接受。</dd>
+<dt>原因</dt><dd>常見原因是誤填 Google 帳戶的一般密碼、應用程式密碼貼錯，或 Google 已撤銷該應用程式密碼。</dd>
+<dt>解法</dt><dd>回到 Google 應用程式密碼頁面，建立新的應用程式密碼，再回到「寄件設定」重新輸入並儲存。登入帳號與寄件 Email 都填完整 Gmail 地址。</dd>
+</dl></div>
+</details>
+<details class="faq">
+<summary>系統提示尚未安裝安全憑證套件</summary>
+<div><dl>
+<dt>現象</dt><dd>儲存密碼或測試寄信時，系統提示安全憑證套件未安裝。</dd>
+<dt>原因</dt><dd>系統需要 <code>keyring</code> 將寄件密碼安全存放在 Windows 憑證區。</dd>
+<dt>解法</dt><dd>依 <a href="#sec-1">第 1 節「安裝 keyring」</a> 的步驟安裝，完成後重新啟動系統。</dd>
+</dl></div>
+</details>
+<details class="faq">
+<summary>測試信沒有出現在收件匣</summary>
+<div><dl>
+<dt>現象</dt><dd>系統顯示寄送成功，但收件匣看不到測試信。</dd>
+<dt>原因</dt><dd>郵件可能被分類到垃圾郵件或其他收件匣分類。</dd>
+<dt>解法</dt><dd>先檢查垃圾郵件資料夾與其他郵件分類，再確認「測試信寄給」欄位填的是正確地址。</dd>
+</dl></div>
+</details>
+<details class="faq">
+<summary>測試時顯示連線失敗或逾時</summary>
+<div><dl>
+<dt>現象</dt><dd>系統無法連上郵件伺服器，或等待後顯示連線逾時。</dd>
+<dt>原因</dt><dd>伺服器、連接埠或安全方式填錯，或目前網路不允許連接 Gmail SMTP。</dd>
+<dt>解法</dt><dd>確認欄位為 <code>smtp.gmail.com</code>、<code>587</code> 與 <code>STARTTLS</code>。若仍失敗，請洽詢網路管理者，確認這台電腦所在的網路是否允許連線至 Gmail SMTP。</dd>
+</dl></div>
+</details>
+</section>
+
+
+
+<p class="footer">回到 <a href="系統操作手冊.html#email">系統操作手冊：Email 經費報告</a></p>
+</main>
+</div>
+<script src="assets/manual.js"></script>
+</body>
+</html>
