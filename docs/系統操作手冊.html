@@ -11,323 +11,709 @@
 <a class="skip-link" href="#main">跳到主要內容</a>
 <div class="layout">
 <nav class="toc" aria-label="章節目錄"><span class="toc-title">章節目錄</span><ol>
-<li><a href="#start"><span>1</span>開始使用</a></li>
-<li><a href="#projects"><span>2</span>所有專案</a></li>
-<li><a href="#overview"><span>3</span>經費總覽</a></li>
-<li><a href="#budget"><span>4</span>預算明細</a></li>
-<li><a href="#expenses"><span>5</span>核銷紀錄</a></li>
-<li><a href="#transfers"><span>6</span>經費流用</a></li>
-<li><a href="#estimate"><span>7</span>補充保費估算</a></li>
-<li><a href="#application"><span>8</span>流用科目變更</a></li>
-<li><a href="#options"><span>9</span>選項資料</a></li>
-<li><a href="#email"><span>10</span>Email 經費報告</a></li>
-<li><a href="#import"><span>11</span>匯入資料</a></li>
-<li><a href="#export"><span>12</span>匯出資料</a></li>
-<li><a href="#backup"><span>13</span>備份與還原</a></li>
-<li><a href="#interface"><span>14</span>表單與畫面操作</a></li>
-<li><a href="#faq"><span>15</span>常見問題</a></li>
+<li><a href="#tasks"><span>1</span>我想要……（任務索引）</a></li>
+<li><a href="#start"><span>2</span>開始使用</a></li>
+<li><a href="#terms"><span>3</span>基本名詞</a></li>
+<li><a href="#projects"><span>4</span>所有專案</a></li>
+<li><a href="#overview"><span>5</span>經費總覽</a></li>
+<li><a href="#budget"><span>6</span>預算明細</a></li>
+<li><a href="#expenses"><span>7</span>核銷紀錄</a></li>
+<li><a href="#transfers"><span>8</span>經費流用</a></li>
+<li><a href="#estimate"><span>9</span>補充保費估算</a></li>
+<li><a href="#application"><span>10</span>流用科目變更</a></li>
+<li><a href="#options"><span>11</span>選項資料</a></li>
+<li><a href="#email"><span>12</span>Email 經費報告</a></li>
+<li><a href="#import"><span>13</span>匯入資料</a></li>
+<li><a href="#export"><span>14</span>匯出資料</a></li>
+<li><a href="#backup"><span>15</span>備份與還原</a></li>
+<li><a href="#workflows"><span>16</span>常用流程</a></li>
+<li><a href="#recovery"><span>17</span>出錯補救</a></li>
+<li><a href="#interface"><span>18</span>表單與畫面操作</a></li>
+<li><a href="#faq"><span>19</span>常見問題</a></li>
 </ol></nav>
 <main id="main" tabindex="-1">
 <header class="doc-head"><span class="tag">使用說明</span>
 <h1>經費管理系統操作手冊</h1>
-<p class="lead">依系統導覽順序，說明專案、預算、核銷、流用、報表與備份的操作。</p></header>
-<div class="summary" aria-label="閱讀摘要"><p><b>適用時機：</b>第一次使用或查找日常操作。</p><p><b>事前準備：</b>在 Windows 啟動經費管理系統。</p></div>
+<p class="lead">建立專案、編列預算、登錄核銷與經費流用，並產生報表、寄送 Email 報告及備份資料。系統只在這台電腦上使用，供單人操作。</p></header>
+<div class="ai-note" role="note"><p><b>要讓 AI 工具讀取本手冊嗎？</b></p><p>若要讓 ChatGPT、Gemini、Copilot 等 AI 工具讀取本手冊來回答操作問題，請<strong>優先提供 Markdown 版</strong>（同資料夾的 <code>系統操作手冊.md</code>）。兩份內容相同，HTML 版適合人閱讀。</p></div>
+<div class="summary" aria-label="閱讀說明"><p><b>畫面名稱：</b>以框線標示的文字（例如 <span class="ui">＋ 新增專案</span>）是畫面上的按鈕、分頁或欄位，名稱與系統畫面相同。</p><p><b>狀態顏色：</b><span class="st st-pending">待核銷</span> <span class="st st-planned">規劃中</span> 需要留意；<span class="st st-over">超支</span> 表示金額不足；<span class="st st-done">已核銷</span> <span class="st st-executed">已流用</span> 已生效；<span class="st st-void">作廢</span> 不計入金額；<span class="st st-locked">已鎖定</span> 不能修改。</p></div>
+
+<section id="tasks">
+<h2><span class="no">1</span>我想要……（任務索引）</h2>
+<p>依你想做的事，找到操作方式。</p>
+<div class="tbl"><table>
+<thead><tr><th>我想要</th><th>怎麼做</th><th>詳細說明</th></tr></thead>
+<tbody>
+<tr><td>建立新專案</td><td>頂端按 <span class="ui">＋ 新增專案</span></td><td><a href="#projects">所有專案</a></td></tr>
+<tr><td>修改專案日期、名稱或經費總額</td><td>進入專案後，按頂端專案選單旁的齒輪按鈕（⚙）</td><td><a href="#projects">所有專案</a></td></tr>
+<tr><td>編列預算</td><td><span class="ui">預算明細</span> → <span class="ui">＋ 新增預算</span>，或用 <span class="ui">匯入預算明細</span></td><td><a href="#budget">預算明細</a></td></tr>
+<tr><td>查某個科目還剩多少錢</td><td><span class="ui">預算明細</span> 看「可用餘額」欄</td><td><a href="#budget">預算明細</a></td></tr>
+<tr><td>登錄一張發票或收據</td><td><span class="ui">核銷紀錄</span> → <span class="ui">＋ 新增核銷批次</span> → 填明細</td><td><a href="#expenses">核銷紀錄</a></td></tr>
+<tr><td>補填 <span class="st st-pending">待核銷</span> 的登錄日期</td><td>點該筆的批次說明 → <span class="ui">編輯批次</span> → 填登錄日期</td><td><a href="#expenses">核銷紀錄</a></td></tr>
+<tr><td>修改核銷的金額、單位或科目</td><td><span class="ui">核銷紀錄</span> 該列按 <span class="ui">編輯</span></td><td><a href="#expenses">核銷紀錄</a></td></tr>
+<tr><td>作廢一筆核銷</td><td><span class="ui">核銷紀錄</span> 勾選 → <span class="ui">作廢</span></td><td><a href="#expenses">核銷紀錄</a></td></tr>
+<tr><td>取消作廢</td><td><span class="ui">作廢</span> 分頁勾選 → <span class="ui">復原</span></td><td><a href="#expenses">核銷紀錄</a></td></tr>
+<tr><td>把 A 科目（或單位）的錢挪到 B</td><td><span class="ui">經費流用</span> → <span class="ui">＋ 新增流用</span>，狀態選 <span class="st st-executed">已流用</span></td><td><a href="#transfers">經費流用</a></td></tr>
+<tr><td>先記下準備挪的錢，還沒定案</td><td><span class="ui">經費流用</span> → <span class="ui">＋ 新增流用</span>，狀態選 <span class="st st-planned">規劃中</span></td><td><a href="#transfers">經費流用</a></td></tr>
+<tr><td>把規劃中的流用改成正式</td><td>勾選 → <span class="ui">轉為已流用</span>，或單筆編輯把狀態改為「已流用」</td><td><a href="#transfers">經費流用</a></td></tr>
+<tr><td>把已流用改回規劃中</td><td>該筆按 <span class="ui">編輯</span>，狀態改為「規劃中」</td><td><a href="#transfers">經費流用</a></td></tr>
+<tr><td>修改 <span class="st st-locked">已鎖定</span> 的流用</td><td>勾選 → <span class="ui">解鎖</span>，再按 <span class="ui">編輯</span></td><td><a href="#transfers">經費流用</a></td></tr>
+<tr><td>查某段期間各科目因流用增減多少</td><td><span class="ui">流用科目變更</span> 填日期 → <span class="ui">查詢</span></td><td><a href="#application">流用科目變更</a></td></tr>
+<tr><td>估算補充保費</td><td><span class="ui">補充保費估算</span> → <span class="ui">＋ 選取估算科目</span></td><td><a href="#estimate">補充保費估算</a></td></tr>
+<tr><td>新增或修改單位、科目名稱</td><td><span class="ui">選項資料</span></td><td><a href="#options">選項資料</a></td></tr>
+<tr><td>寄經費報告給各單位或主管</td><td><span class="ui">Email 經費報告</span> → <span class="ui">寄送報告</span></td><td><a href="#email">Email 經費報告</a></td></tr>
+<tr><td>更換寄件密碼</td><td><span class="ui">Email 經費報告</span> → <span class="ui">寄件設定</span> 分頁</td><td><a href="#email">Email 經費報告</a></td></tr>
+<tr><td>修改或刪除收件人</td><td><span class="ui">Email 經費報告</span> → <span class="ui">收件人清單</span> 分頁</td><td><a href="#email">Email 經費報告</a></td></tr>
+<tr><td>產生 Excel、PDF 報表</td><td><span class="ui">匯出資料</span></td><td><a href="#export">匯出資料</a></td></tr>
+<tr><td>用 Excel 一次匯入很多筆</td><td>左側 <span class="ui">匯入預算明細</span>、<span class="ui">匯入核銷紀錄</span>、<span class="ui">匯入流用紀錄</span></td><td><a href="#import">匯入資料</a></td></tr>
+<tr><td>匯入錯了要撤回</td><td>系統沒有撤銷鍵，見「出錯補救」</td><td><a href="#recovery">出錯補救</a></td></tr>
+<tr><td>備份資料</td><td>左側下方 <span class="ui">下載資料庫備份</span></td><td><a href="#backup">備份與還原</a></td></tr>
+<tr><td>搬到另一台電腦</td><td>備份 → 新電腦啟動系統 → 還原 → 重新輸入寄件密碼</td><td><a href="#workflows">常用流程</a></td></tr>
+<tr><td>月底對帳</td><td>處理待核銷 → 檢查超支 → 匯出報表 → 備份</td><td><a href="#workflows">常用流程</a></td></tr>
+<tr><td>專案結案</td><td>清掉待核銷與規劃中流用 → 匯出最終報表 → 備份</td><td><a href="#workflows">常用流程</a></td></tr>
+</tbody></table></div>
+</section>
 
 <section id="start">
-<h2><span class="no">1</span>開始使用</h2>
-<p>依序啟動系統並完成首次設定。</p>
-<h3>啟動與停止</h3>
+<h2><span class="no">2</span>開始使用</h2>
+<p>啟動系統、認識畫面，並完成第一次的設定。</p>
+<h3>啟動與停止系統</h3>
 <ol class="steps">
-<li><b>雙擊「啟動經費管理.bat」</b><p>在 Windows 檔案總管中執行。</p></li>
-<li><b>等待瀏覽器開啟系統頁面</b><p>系統預設使用本機網址 <code>http://127.0.0.1:8765</code>。</p></li>
-<li><b>要停止服務時，關閉啟動程式的命令視窗</b></li>
+<li><b>在 Windows 檔案總管中，雙擊「啟動經費管理.bat」</b><p>第一次啟動需要稍候，系統會建立執行環境。</p></li>
+<li><b>瀏覽器會自動開啟系統頁面</b></li>
+<li><b>要停止系統時，關閉啟動程式的黑色命令視窗</b><p>只關閉瀏覽器分頁不會停止系統。</p></li>
 </ol>
-<p>本系統以 SQLite 儲存資料，供單機、單人使用。</p>
+<p>所有資料都存在這台電腦裡，不會上傳到網路。</p>
 
-<h3>初次設定順序</h3>
+<h3>認識畫面</h3>
+<div class="tbl"><table>
+<thead><tr><th>位置</th><th>內容</th></tr></thead>
+<tbody>
+<tr><td>頂端列</td><td><span class="ui">目前專案</span> 下拉選單切換專案；齒輪按鈕（⚙）修改目前專案的資料；<span class="ui">主題</span> 選單切換淺色、深色或自訂顏色；<span class="ui">＋ 新增專案</span> 建立專案；左上角圖示可點選更換。</td></tr>
+<tr><td>左側導覽</td><td>各功能頁面。</td></tr>
+<tr><td>左側下方</td><td><span class="ui">下載資料庫備份</span> 及 <span class="ui">還原資料庫備份</span>。</td></tr>
+</tbody></table></div>
+<p>在 <span class="ui">所有專案</span> 頁時，左側只顯示 <span class="ui">所有專案</span>。按專案的 <span class="ui">瀏覽</span> 進入專案後，才會出現其他功能。</p>
+
+<h3>第一次使用的設定順序</h3>
 <ol class="steps">
-<li><b>建立專案</b><p>到 <span class="ui">所有專案</span> 建立專案並填寫基本資料。新建專案時，系統會自動建立部分預設選項。</p></li>
-<li><b>確認選項</b><p>到專案的 <span class="ui">選項資料</span> 確認預設選項，並視需要補充或調整。</p></li>
-<li><b>載入預算</b><p>到 <span class="ui">匯入預算明細</span> 載入預算明細，或手動新增。預算匯入可確認並新增檔案中尚未建立的選項；核銷與流用匯入則須使用已建立的選項。</p></li>
-<li><b>核對後開始登錄</b><p>到 <span class="ui">預算明細</span> 核對資料，再開始登錄核銷與經費流用。</p></li>
+<li><b>建立專案</b><p>按 <span class="ui">＋ 新增專案</span> 填寫基本資料。系統會自動建立 5 個預設選項：經費類別「補助款」「自籌款」，經費屬性「人事費」「業務費」「資本門」。</p></li>
+<li><b>建立單位與預算科目</b><p>到 <span class="ui">選項資料</span> 新增單位和預算科目，這兩種沒有預設值。如果下一步要匯入預算，可以略過，因為預算匯入會自動建立缺少的選項。</p></li>
+<li><b>編列預算</b><p>到 <span class="ui">匯入預算明細</span> 匯入，或在 <span class="ui">預算明細</span> 逐筆新增。</p></li>
+<li><b>核對預算</b><p>在 <span class="ui">預算明細</span> 確認金額無誤後，再開始登錄核銷與流用。</p></li>
 </ol>
 
 <details>
-<summary>何時需要使用選用套件安裝工具？</summary>
+<summary>什麼時候需要安裝選用套件？</summary>
 <div>
-<p>一般操作不需要另外執行 <code>Install-optional-packages.bat</code>。需要匯出 PDF、在 Email 報告附上 PDF，或寄送 Email 報告，但對應套件在啟動時被略過、缺少或版本不符合需求時，可使用此工具；要更新已安裝的選用套件時也可使用。</p>
+<p>一般操作不需要。以下功能需要選用套件：匯出 PDF、Email 附上 PDF、寄送 Email。如果啟動時略過了安裝，或功能無法使用，可以這樣補裝：</p>
 <ol>
-<li>檢查專案資料夾是否已有 <code>.venv</code> 資料夾。</li>
-<li>若已存在，先關閉系統；若不存在，先執行「啟動經費管理.bat」讓啟動流程建立環境，待系統啟動後關閉。</li>
-<li>雙擊 <code>Install-optional-packages.bat</code>，依選單選擇 PDF、Email 或全部安裝／更新。</li>
+<li>先關閉系統。如果系統資料夾裡沒有 <code>.venv</code> 資料夾，先啟動系統一次再關閉。</li>
+<li>雙擊系統資料夾中的 <code>Install-optional-packages.bat</code>。</li>
+<li>依選單選擇 PDF、Email 或全部安裝。</li>
 </ol>
 </div>
 </details>
 </section>
 
+<section id="terms">
+<h2><span class="no">3</span>基本名詞</h2>
+<p>系統如何分類經費，以及各種狀態和金額的意思。</p>
+<h3>預算明細由四種選項組成</h3>
+<p>每一筆預算都由四種選項組合而成。選項在 <span class="ui">選項資料</span> 管理，每個專案各自獨立。</p>
+<div class="tbl"><table>
+<thead><tr><th>選項</th><th>意思</th><th>例子</th></tr></thead>
+<tbody>
+<tr><td>經費類別</td><td>錢從哪裡來</td><td>補助款、自籌款</td></tr>
+<tr><td>單位</td><td>誰負責用這筆錢</td><td>A 單位、計畫主持人</td></tr>
+<tr><td>經費屬性</td><td>錢的大分類</td><td>人事費、業務費、資本門</td></tr>
+<tr><td>預算科目</td><td>實際花在什麼項目</td><td>耗材、國內差旅費、臨時工資</td></tr>
+</tbody></table></div>
+<p><strong>預算明細</strong>＝「經費類別＋單位＋經費屬性＋預算科目」的一個組合及其金額。例如「補助款／A 單位／業務費／耗材，50,000 元」就是一筆預算明細。每筆核銷和流用都要對應到一筆預算明細。</p>
+
+<h3>核銷有三種狀態</h3>
+<div class="tbl"><table>
+<thead><tr><th>狀態</th><th>怎麼判斷</th><th>會不會占用經費</th></tr></thead>
+<tbody>
+<tr><td><span class="st st-done">已核銷</span></td><td>已填登錄日期，且沒有作廢</td><td>會</td></tr>
+<tr><td><span class="st st-pending">待核銷</span></td><td>登錄日期還沒填，且沒有作廢</td><td><span class="key">會。</span>雖然還沒登錄，仍然先扣額度</td></tr>
+<tr><td><span class="st st-void">作廢</span></td><td>已標記作廢</td><td>不會，只保留紀錄供查核</td></tr>
+</tbody></table></div>
+
+<h3>流用有兩種狀態</h3>
+<div class="tbl"><table>
+<thead><tr><th>狀態</th><th>意思</th></tr></thead>
+<tbody>
+<tr><td><span class="st st-planned">規劃中</span></td><td>只是先記下來，預算不會改變，但可能會圈存額度（見下方「圈存」）</td></tr>
+<tr><td><span class="st st-executed">已流用</span></td><td>正式生效，預算會真的移動</td></tr>
+</tbody></table></div>
+<p>另外，每筆流用都可以「鎖定」。<span class="st st-locked">已鎖定</span> 的流用不能編輯或刪除，用來防止誤改。</p>
+
+<h3>餘額與圈存</h3>
+<div class="tbl"><table>
+<thead><tr><th>名詞</th><th>意思</th></tr></thead>
+<tbody>
+<tr><td>初始預算</td><td>當初編列的金額</td></tr>
+<tr><td>流用後預算</td><td>初始預算＋已流用的流入－已流用的流出</td></tr>
+<tr><td>帳面餘額</td><td>流用後預算－已核銷－待核銷</td></tr>
+<tr><td>圈存</td><td>規劃中流用先扣住、準備流出的金額</td></tr>
+<tr><td>可用餘額</td><td>帳面餘額－圈存。<span class="key">這是實際還能核銷或流出的金額</span></td></tr>
+<tr><td><span class="st st-over">超支</span></td><td>帳面餘額小於 0</td></tr>
+</tbody></table></div>
+<div class="example"><b>例子：圈存</b>
+<p>「耗材」帳面餘額 10,000 元。你新增一筆 <span class="st st-planned">規劃中</span> 流用，準備從耗材挪 3,000 元到差旅費。系統會先扣住這 3,000 元，所以耗材的可用餘額變成 7,000 元，最多只能再核銷 7,000 元。這筆流用轉為已流用或被刪除後，圈存就會解除。</p>
+</div>
+<p>只有規劃中流用的流出單位、經費屬性、預算科目和金額都填齊時，才會圈存。</p>
+
+<h3>兩種執行率</h3>
+<div class="pair">
+<div><h4>真實執行率</h4><p>已核銷 ÷ 專案經費總額。用於對外報告。</p></div>
+<div><h4>預估執行率</h4><p>（已核銷＋待核銷）÷ 專案經費總額。用來掌握含待核銷的使用狀況。</p></div>
+</div>
+<div class="example"><b>例子：執行率</b>
+<p>專案經費總額 1,000,000 元，已核銷 300,000 元，待核銷 100,000 元。真實執行率是 30%，預估執行率是 40%。</p>
+</div>
+</section>
+
 <section id="projects">
-<h2><span class="no">2</span>所有專案</h2>
-<p>在所有專案頁建立、瀏覽及匯出專案。</p>
-<p><span class="ui">所有專案</span> 提供「執行中」、「未執行」、「已完成」及「總覽」分頁，可新增專案或瀏覽專案內容。</p>
+<h2><span class="no">4</span>所有專案</h2>
+<p>建立、查看、修改和刪除專案。</p>
+<h3>查看專案清單</h3>
 <ul>
-<li>專案狀態依執行起日、迄日及目前日期判定。</li>
-<li>未完成且距離迄日三個月內的專案會顯示提醒。</li>
-<li>專案清單可依狀態匯出為 Excel、Markdown 或 PDF。</li>
+<li>分頁有 <span class="ui">執行中</span>、<span class="ui">未執行</span>、<span class="ui">已完成</span>、<span class="ui">總覽</span>。狀態由執行起訖日和今天的日期自動決定，不需手動設定。</li>
+<li>尚未結束、而且三個月內就到期的專案，名稱前會顯示計時器圖示（⏱️）。</li>
+<li>清單列出每個專案的真實執行率和預估執行率。</li>
+<li>按 <span class="ui">瀏覽</span> 進入該專案。</li>
 </ul>
-<p>建立專案時請填妥：</p>
+<h3>匯出專案清單</h3>
+<p>在清單右上方選 <span class="ui">匯出狀態</span> 和 <span class="ui">格式</span>（Excel、Markdown、PDF），按 <span class="ui">匯出專案</span>。</p>
+<h3>新增專案</h3>
+<p>按 <span class="ui">＋ 新增專案</span>，填寫以下欄位後儲存：</p>
+<div class="tbl"><table>
+<thead><tr><th>欄位</th><th>說明</th></tr></thead>
+<tbody>
+<tr><td>專案名稱（必填）</td><td>顯示在清單和報表</td></tr>
+<tr><td>專案編號（必填）</td><td>不可和其他專案重複，建議使用學校專案管理系統的編號</td></tr>
+<tr><td>執行起日、執行迄日（必填）</td><td>核銷和流用的日期都必須在這段期間內</td></tr>
+<tr><td>專案經費總額（必填）</td><td>預算明細合計不可超過這個金額</td></tr>
+<tr><td>執行單位、聯絡人、電話、Email</td><td>選填</td></tr>
+</tbody></table></div>
+<h3>修改專案資料</h3>
+<p>進入專案後，按頂端 <span class="ui">目前專案</span> 旁的齒輪按鈕（⚙），修改後儲存。以下情況無法儲存：</p>
 <ul>
-<li><strong>專案名稱</strong>、<strong>執行單位</strong></li>
-<li><strong>專案編號</strong>：不可與其他專案重複。</li>
-<li><strong>執行期間</strong>：決定專案狀態，核銷與流用日期也須落在這段期間內。</li>
-<li><strong>專案經費總額</strong>：預算明細合計不可超過此金額，也是執行率的分母。</li>
+<li>縮短執行期間後，既有核銷的日期或流用日期落在期間外。</li>
+<li>專案經費總額低於已編列的預算合計。</li>
 </ul>
+<h3>刪除專案</h3>
+<ol class="steps">
+<li><b>按齒輪按鈕（⚙）開啟專案資料，按 <span class="ui">刪除</span></b></li>
+<li><b>在「永久刪除專案」視窗輸入專案編號</b></li>
+<li><b>按 <span class="ui">永久刪除</span></b></li>
+</ol>
+<div class="callout danger"><b>刪除後無法復原</b>
+<p>這個專案的預算、核銷、流用、收件人等所有資料都會永久刪除。刪除前請先按 <span class="ui">下載資料庫備份</span>。</p>
+</div>
 </section>
 
 <section id="overview">
-<h2><span class="no">3</span>經費總覽</h2>
-<p>查看專案執行率、彙整表、進度圖及筆記。</p>
-<h3>兩種執行率</h3>
-<p>首頁與 <span class="ui">經費總覽</span> 並列兩種執行率，兩者皆以專案經費總額為分母。</p>
-<div class="pair">
-<div><h4>真實執行率</h4><p>以已填登錄日期且未作廢的核銷金額計算。</p><p><strong>用途：</strong>供報告使用。</p></div>
-<div><h4>預估執行率</h4><p>納入所有未作廢核銷金額（含待核銷）。</p><p><strong>用途：</strong>觀察目前規劃狀況。</p></div>
-</div>
-<h3>彙整表</h3>
+<h2><span class="no">5</span>經費總覽</h2>
+<p>進入專案後的第一頁，一次查看執行狀況。</p>
+<h3>摘要卡片</h3>
+<div class="tbl"><table>
+<thead><tr><th>卡片</th><th>內容</th></tr></thead>
+<tbody>
+<tr><td>專案經費總額</td><td>專案設定的經費上限</td></tr>
+<tr><td>真實執行</td><td>已核銷金額及真實執行率</td></tr>
+<tr><td>預估執行</td><td>已核銷＋待核銷的金額、預估執行率，以及其中待核銷的金額</td></tr>
+<tr><td>預估未規劃餘額</td><td>專案經費總額－（已核銷＋待核銷），並顯示超支的預算明細筆數</td></tr>
+</tbody></table></div>
+<h3>其他區塊</h3>
 <ul>
-<li><strong>依經費類別與屬性：</strong>分列流用後預算、已核銷、待核銷、帳面餘額、可用餘額及含待核銷執行率，保留「類別小計」。</li>
-<li><strong>依單位：</strong>分列已核銷、待核銷、帳面餘額、可用餘額、含待核銷執行率及查看操作。</li>
+<li><strong>筆記區：</strong>寫下專案備忘事項，按 <span class="ui">儲存筆記</span> 保存。</li>
+<li><strong>每月真實執行率：</strong>從執行起日的月份到迄日的月份，逐月累計已核銷金額的折線圖。待核銷沒有登錄日期，所以不列入。</li>
+<li><strong>依經費類別與經費屬性：</strong>每個經費類別先列「類別小計」，再分列各經費屬性的預算、已核銷、待核銷、帳面餘額、可用餘額及執行率。</li>
+<li><strong>依單位：</strong>每個單位的已核銷、待核銷、帳面餘額、可用餘額及執行率。按 <span class="ui">查看</span> 會跳到預算明細，只顯示該單位的資料。</li>
+<li><strong>待核銷：</strong>列出所有 <span class="st st-pending">待核銷</span> 紀錄，可按 <span class="ui">編輯</span> 直接處理。</li>
 </ul>
-<p class="formula">帳面餘額 ＝ 流用後預算 － 已核銷 － 待核銷<br>可用餘額 ＝ 帳面餘額 － 規劃流用保留額</p>
-<p class="formula">執行率 ＝（已核銷 ＋ 待核銷）÷ 流用後預算<small>分母為 0 時顯示「—」。</small></p>
-<h3>每月進度圖與其他區塊</h3>
-<ul>
-<li>每月進度圖依專案執行起訖月份連續呈現真實執行率。待核銷沒有登錄日期，因此不列入月圖。</li>
-<li>頁面亦提供依經費類別與屬性彙整、依單位彙整、待核銷明細及專案筆記。筆記會儲存在系統資料庫。</li>
-</ul>
+<div class="callout warn"><b>表格的執行率和摘要卡片不同</b><p>這兩個表格的「執行率」是（已核銷＋待核銷）÷ 該列的流用後預算，分母不是專案經費總額。</p></div>
 </section>
 
 <section id="budget">
-<h2><span class="no">4</span>預算明細</h2>
-<p>核對每筆預算及可用餘額。</p>
-<h3>預算明細</h3>
-<p>每筆預算明細包含經費類別、單位、經費屬性、預算科目及初始預算。明細表分列以下金額：</p>
-<div class="tbl"><table>
-<thead><tr><th>欄位</th><th>計算方式</th></tr></thead>
-<tbody>
-<tr><td>流用後預算</td><td>初始預算加上流入、減去流出後的預算。</td></tr>
-<tr><td>已核銷</td><td>有登錄日期且未作廢的金額。</td></tr>
-<tr><td>待核銷</td><td>未填登錄日期且未作廢的金額。</td></tr>
-<tr><td>帳面餘額</td><td>流用後預算扣除已核銷與待核銷，不考慮規劃中流用。</td></tr>
-<tr><td>可用餘額</td><td>帳面餘額再扣除規劃流用保留額，代表目前可核銷或流出的金額。</td></tr>
-</tbody></table></div>
-<p class="formula">帳面餘額 ＝ 流用後預算 － 已核銷 － 待核銷<br>可用餘額 ＝ 帳面餘額 － 規劃流用保留額</p>
+<h2><span class="no">6</span>預算明細</h2>
+<p>編列、修改和查看每筆預算明細。</p>
+<h3>新增預算</h3>
+<ol class="steps">
+<li><b>按 <span class="ui">＋ 新增預算</span></b></li>
+<li><b>依序選擇「經費類別」「單位」「經費屬性」「預算科目」</b><p>選項必須已在 <span class="ui">選項資料</span> 建立。</p></li>
+<li><b>輸入「初始預算」後儲存</b><p>同樣的四項組合不能重複建立。但經費屬性不同就算不同組合，例如同一單位的「耗材」，可以分別建在業務費和資本門底下。</p></li>
+</ol>
+<h3>修改預算</h3>
+<p>在該列按 <span class="ui">編輯</span>。</p>
 <ul>
-<li>專案預算明細合計可以低於專案經費總額，但不可超過；尚未編列金額可在預算明細頁查看。</li>
-<li>預算科目可能因核銷而超支，之後可透過流用調整。</li>
-<li>核銷表單選完經費類別、單位及經費屬性後，預算科目選單先列已有完全相符預算明細的科目，再列尚無預算明細的科目；後者仍可選取，儲存前會詢問是否建立 0 元明細。</li>
+<li>這筆預算已有核銷或流用紀錄時，只能改金額，不能改經費類別、單位、經費屬性或預算科目。</li>
+<li>調降金額後，如果專案或各層額度會少於已使用的金額（含待核銷），或會占用圈存，系統會拒絕儲存。</li>
 </ul>
+<h3>查看已編列多少</h3>
+<p>頁面上方顯示「專案總額」「已編列」「尚未編列」。預算合計可以少於專案經費總額，但不能超過。</p>
+<h3>篩選與查看</h3>
+<ul>
+<li>分頁：<span class="ui">正常</span>（沒有超支）、<span class="ui">超支</span>（有 <span class="st st-over">超支</span> 時分頁前會顯示警告圖示 ⚠️）、<span class="ui">總覽</span>。</li>
+<li>可依單位、經費類別篩選，或搜尋預算科目和單位；按 <span class="ui">清除</span> 取消條件。</li>
+<li>每列顯示初始預算、流入、流出、流用後預算、已核銷、待核銷、帳面餘額、可用餘額。</li>
+</ul>
+<h3>預算科目什麼時候可以超支</h3>
+<p>只有<strong>同時</strong>符合以下兩個條件時，單一科目才能超支：</p>
+<ol>
+<li>同一個「單位＋經費類別＋經費屬性」底下，其他科目還有可用餘額。</li>
+<li>這個科目沒有被規劃中流用圈存。</li>
+</ol>
+<p>不符合時，系統會拒絕儲存。</p>
+<div class="example"><b>例子：科目超支</b>
+<p>A 單位的補助款業務費底下，耗材剩 0 元、差旅費剩 5,000 元。耗材最多可以超支 5,000 元，之後再用流用把差旅費的錢挪過來補平。</p>
+</div>
+<h3>刪除預算</h3>
+<p>勾選後按 <span class="ui">刪除</span>。以下情況不能刪除：該預算明細有核銷（包括作廢的）、有已流用紀錄，或有已鎖定的規劃中流用。可以刪除時，確認視窗會列出將一併刪除的資料。</p>
 </section>
 
 <section id="expenses">
-<h2><span class="no">5</span>核銷紀錄</h2>
-<p>登錄核銷並辨認已核銷、待核銷與作廢紀錄。</p>
-<p><span class="ui">核銷紀錄</span> 可新增或編輯核銷明細。每列代表一筆經費明細；多筆明細可共用批次說明及登錄日期。</p>
+<h2><span class="no">7</span>核銷紀錄</h2>
+<p>登錄、修改、作廢和刪除核銷。</p>
+<h3>批次和明細是什麼</h3>
+<p>核銷以「紙本批次」為單位。一個批次就是一次送出的核銷單，裡面可以有多筆明細。同一批次的明細共用<strong>登錄日期</strong>和<strong>批次說明</strong>。清單中每一列是一筆明細。</p>
+<h3>新增核銷</h3>
+<ol class="steps">
+<li><b>按 <span class="ui">＋ 新增核銷批次</span>，填寫「登錄日期」和「批次說明」後儲存</b><p>登錄日期還不知道可以先空著，這批明細就會是 <span class="st st-pending">待核銷</span>。</p></li>
+<li><b>填寫明細</b><p>儲存後會自動開啟明細表單。依序選擇「經費類別」「單位」「經費屬性」「預算科目」，再填「核銷金額」。選好單位後，表單會顯示<strong>可核銷上限</strong>，金額不要超過它。</p></li>
+<li><b>視需要填寫「憑證日期」「付款對象」「用途／備註」</b></li>
+<li><b>儲存後接著輸入下一筆</b><p>表單預設勾選「儲存資料後不關閉表單」，儲存後會清空欄位，可以接著輸入同一批次的下一筆。</p></li>
+</ol>
+<h3>補填登錄日期</h3>
+<ol class="steps">
+<li><b>在清單中點選該筆的批次說明（顯示為「#編號 說明」），開啟批次面板</b></li>
+<li><b>按 <span class="ui">編輯批次</span>，填入登錄日期後儲存</b><p>整批明細會一起變成 <span class="st st-done">已核銷</span>。</p></li>
+</ol>
+<h3>在既有批次追加明細</h3>
+<p>開啟批次面板，按 <span class="ui">＋ 在此批次新增明細</span>。</p>
+<h3>修改一筆核銷</h3>
+<p>在該列按 <span class="ui">編輯</span>，可以修改單位、科目、金額、日期、付款對象和備註。登錄日期和批次說明是整批共用的，要改請用 <span class="ui">編輯批次</span>。</p>
 <h3>填寫規則</h3>
 <ul>
-<li><strong>登錄日期與憑證日期可留白。</strong>登錄日期留白時標示「待核銷」，但該筆仍納入經費控管。</li>
-<li>日期須符合專案執行期間；憑證日期不可晚於登錄日期。</li>
-<li>登錄日期晚於今天時會提示「此登錄日期晚於今天，請確認」，仍可儲存；匯入預覽也會列警告。</li>
-<li>所有金額須為整數元；核銷可為 0 元，付款分配金額也須為整數。</li>
-<li>付款對象及分配金額可不填；若填寫，兩者須成對，分配金額合計須等於核銷金額。</li>
-<li>作廢紀錄保留供查核，但不計入有效核銷統計。</li>
+<li>日期須在專案執行期間內；憑證日期不可晚於登錄日期。</li>
+<li>登錄日期晚於今天時，會提示「此登錄日期晚於今天，請確認」，但仍可儲存。</li>
+<li>金額須為整數元，可以是 0。</li>
+<li>付款對象可以不填。若填寫，每一位都要有分配金額，而且合計要等於核銷金額。名稱不可包含「;」或「；」。</li>
 </ul>
-<div class="callout"><b>沒有相符的預算明細時</b>
-<p>系統會先詢問是否建立初始預算為 0 元的明細，再儲存核銷。超過專案或相關經費上限時，系統會拒絕儲存。</p>
+<h3>核銷金額的上限</h3>
+<p><span class="st st-pending">待核銷</span> 和 <span class="st st-done">已核銷</span> 都會占用額度。核銷金額不能超過以下任何一項的剩餘額度：</p>
+<ul>
+<li>整個專案的預算合計</li>
+<li>該經費類別</li>
+<li>該單位（會扣除流到其他單位的圈存）</li>
+<li>該「單位＋經費類別＋經費屬性」組合（會扣除圈存）</li>
+</ul>
+<p>超過時，系統會拒絕儲存，並指出是哪一項超過。</p>
+<div class="callout"><b>找不到對應的預算明細時</b>
+<p>如果選的四項選項還沒有預算明細，儲存時會詢問是否建立「初始預算 0 元」的明細。按確認後，會同時建立明細和核銷；按取消則不儲存，表單內容保留。建立 0 元明細不會增加任何額度。</p>
 </div>
-<h3>檢視與批次操作</h3>
-<p>可依「待核銷」、「已核銷」、「作廢」或「總覽」分頁查看資料，並使用批次「刪除」、「作廢」或「復原」功能。</p>
-<p>批次操作前會列出筆數、合計金額與各狀態筆數。刪除後可從「刪除紀錄」唯讀查看原核銷、批次與付款分配；刪除紀錄不計入金額統計，也不能由此還原。</p>
+<h3>作廢、取消作廢與刪除</h3>
+<p>勾選核銷後，可以按：</p>
+<div class="tbl"><table>
+<thead><tr><th>按鈕</th><th>結果</th></tr></thead>
+<tbody>
+<tr><td><span class="ui">作廢</span></td><td>變成 <span class="st st-void">作廢</span>：紀錄保留，但不計入金額。適合處理退件或取消的核銷。</td></tr>
+<tr><td><span class="ui">復原</span></td><td>取消作廢，恢復計入金額。</td></tr>
+<tr><td><span class="ui">刪除</span></td><td>從清單移除，<span class="key">無法復原</span>。系統會保留一份唯讀紀錄，可按右上方 <span class="ui">刪除紀錄</span> 查看原本的內容。</td></tr>
+</tbody></table></div>
+<p>執行前會顯示筆數、金額合計及各狀態的筆數，確認視窗預設停在「取消」。</p>
+<h3>篩選與查看</h3>
+<ul>
+<li>分頁：<span class="ui">待核銷</span>（有資料時顯示警告圖示 ⚠️）、<span class="ui">已核銷</span>、<span class="ui">作廢</span>、<span class="ui">總覽</span>。</li>
+<li>可依預算科目、單位篩選，或搜尋批次說明、單位、預算科目、備註。</li>
+</ul>
 </section>
 
 <section id="transfers">
-<h2><span class="no">6</span>經費流用</h2>
-<p>管理規劃中與已流用的經費轉移。</p>
-<p><span class="ui">經費流用</span> 記錄同一專案、同一經費類別內的預算流出與流入，可跨單位或預算科目。新增時依序填寫日期、經費類別、流出項目、流入項目及金額。流用日期須在專案執行期間；規劃中與已流用資料的流出與流入經費屬性須相同。</p>
-<p>流用金額必須是大於 0 的整數元；規劃中的流出與流入若已填成同一筆預算明細，儲存時會拒絕。同單位規劃流用也會保留流出組合額度；若其他核銷或流用占用這筆保留，系統會列出規劃流用編號、保留金額及本筆上限。</p>
-<p>編輯已流用紀錄若會讓其他科目新增或加深透支，系統先列出影響並請您確認；取消不會變更紀錄。若會占用其他規劃中流用已圈存的額度，系統直接拒絕。</p>
-<p>每筆流用有<strong>兩個彼此獨立的狀態</strong>：</p>
-<div class="axes" role="group" aria-label="流用的兩種狀態">
-<div class="axis"><b>狀態一：執行進度</b>
-<div class="flow"><span class="node alt">規劃中</span><span class="arrow" aria-hidden="true">→</span><span class="node">已流用</span></div>
-<p>補齊資料並通過檢查後，可由規劃中改為已流用。</p>
-</div>
-<div class="axis"><b>狀態二：鎖定</b>
-<div class="flow"><span class="node alt">未鎖定</span><span class="arrow" aria-hidden="true">⇄</span><span class="node">已鎖定</span></div>
-<p>已鎖定紀錄不可編輯或刪除。</p>
-</div>
-</div>
-<div class="tbl"><table>
-<thead><tr><th></th><th>規劃中</th><th>已流用</th></tr></thead>
-<tbody>
-<tr><td>資料完整度</td><td>可先記錄已知資訊。</td><td>須補齊必要資料，並通過額度與經費屬性檢查。</td></tr>
-<tr><td>額度</td><td>流出項目及正數金額填妥時圈存可用額度；資料未填齊時不圈存。</td><td>流出金額不得超過扣除其他規劃圈存後的可用餘額。</td></tr>
-<tr><td>統計與報表</td><td>不列入實際流用金額；一般匯出與 Email 的「流用紀錄」會列出並標示規劃中。</td><td>列入總額、流用科目變更及正式報表。</td></tr>
-</tbody></table></div>
-<h3>檢視與批次操作</h3>
+<h2><span class="no">8</span>經費流用</h2>
+<p>把預算從一筆預算明細挪到另一筆。</p>
+<h3>流用能做什麼</h3>
+<p>流用可以跨單位、跨預算科目，但有兩個限制：</p>
+<ol>
+<li>必須在<strong>同一個經費類別</strong>內，例如補助款不能挪到自籌款。</li>
+<li>流出和流入的<strong>經費屬性必須相同</strong>，例如業務費不能挪到人事費。</li>
+</ol>
+<div class="example"><b>例子：流用</b><p>從「補助款／A 單位／業務費／耗材」挪 5,000 元到「補助款／B 單位／業務費／國內差旅費」。</p></div>
+
+<h3>選「規劃中」還是「已流用」</h3>
 <ul>
-<li>頁面提供「總覽」、「未鎖定」、「已鎖定」及「規劃中」分頁。</li>
-<li>可批次刪除、鎖定與解鎖。</li>
-<li>批次解鎖及可能造成預算明細透支的刪除會要求確認。</li>
-<li>選取項目中若有已鎖定紀錄，刪除會被拒絕。</li>
+<li>錢確定要挪了 → 選 <span class="st st-executed">已流用</span>。</li>
+<li>只是先記下來，還沒定案 → 選 <span class="st st-planned">規劃中</span>。</li>
+</ul>
+<div class="tbl"><table>
+<thead><tr><th>比較項目</th><th><span class="st st-planned">規劃中</span></th><th><span class="st st-executed">已流用</span></th></tr></thead>
+<tbody>
+<tr><td>必填欄位</td><td>可以只填已知的欄位</td><td>所有欄位都必填</td></tr>
+<tr><td>預算是否改變</td><td>不改變</td><td>改變</td></tr>
+<tr><td>是否圈存</td><td>流出項目和金額填齊時會圈存</td><td>不圈存，直接移動預算</td></tr>
+<tr><td>一般報表與 Email 附件</td><td>列出，並標示規劃中</td><td>列出</td></tr>
+<tr><td>流用科目變更</td><td>不列入</td><td>列入</td></tr>
+</tbody></table></div>
+
+<h3>新增流用</h3>
+<ol class="steps">
+<li><b>按 <span class="ui">＋ 新增流用</span>，先選「狀態」：「規劃中」或「已流用」</b></li>
+<li><b>依欄位編號填寫</b><p>流用日期、經費類別、流出單位、流出經費屬性、流出預算科目、流入單位、流入經費屬性、流入預算科目、流用金額。</p></li>
+<li><b>確認額度後儲存</b><p>選好流出項目後，表單下方會顯示可流出的額度和圈存狀況。</p></li>
+</ol>
+<p>填寫時要注意：</p>
+<ul>
+<li>流用日期須在專案執行期間內；金額須為大於 0 的整數元。</li>
+<li>流出欄位通常要依序選，前一欄選好，下一欄才有選項。規劃中可以先跳過流出欄位，直接選流入單位。</li>
+<li>選了流出經費屬性後，流入經費屬性會自動帶入相同的屬性。</li>
+<li>流入預算科目只會列出全專案中，已有相同經費類別和經費屬性預算明細的科目。找不到想要的科目時，請先到 <span class="ui">預算明細</span> 建立。</li>
+<li>狀態選「已流用」時，若流入單位還沒有該科目的預算明細，會詢問是否建立 0 元明細；按取消則不儲存。</li>
+<li>流出和流入不可以是同一筆預算明細。</li>
+</ul>
+
+<h3>把規劃中改為已流用</h3>
+<p><strong>單筆：</strong>按 <span class="ui">編輯</span>，補齊所有欄位，把狀態改為「已流用」後儲存。</p>
+<p><strong>多筆：</strong>勾選後按 <span class="ui">轉為已流用</span>。</p>
+<ol class="steps">
+<li><b>系統逐筆檢查</b><p>檢查日期、必填欄位、鎖定狀態、經費屬性和額度。只要有一筆不通過，就會列出每一筆的原因，<span class="key">整批都不轉換</span>。</p></li>
+<li><b>全部通過後，出現「確認轉為已流用」視窗</b><p>需要建立 0 元預算明細時，也會一併列在這裡。</p></li>
+<li><b>按 <span class="ui">確認並轉換</span> 才會執行</b></li>
+</ol>
+
+<h3>把已流用改回規劃中</h3>
+<p>按 <span class="ui">編輯</span>，把狀態改為「規劃中」後儲存。如果這樣做會讓其他預算明細超支，系統會先列出影響，確認後才儲存。</p>
+
+<h3>修改或刪除流用</h3>
+<ul>
+<li><span class="st st-locked">已鎖定</span> 的流用（列上顯示鎖頭圖示 🔒）沒有 <span class="ui">編輯</span> 按鈕，也不能刪除。請先勾選後按 <span class="ui">解鎖</span>。</li>
+<li>修改或刪除已流用紀錄時，如果會讓其他預算明細超支，系統會先列出受影響的科目和前後餘額，確認後才執行。</li>
+<li>如果會占用其他規劃中流用已圈存的額度，系統直接拒絕。</li>
+</ul>
+
+<h3>篩選與批次操作</h3>
+<ul>
+<li>分頁：<span class="ui">總覽</span>、<span class="ui">未鎖定</span>、<span class="ui">已鎖定</span>、<span class="ui">規劃中</span>（有資料時顯示警告圖示 ⚠️）。</li>
+<li>可依經費類別、流出單位、流入單位篩選，或輸入關鍵字搜尋。</li>
+<li>勾選後可以按 <span class="ui">轉為已流用</span>、<span class="ui">刪除</span>、<span class="ui">鎖定</span>、<span class="ui">解鎖</span>。解鎖前會要求確認；選取的項目中有已鎖定紀錄時，刪除會被拒絕。</li>
 </ul>
 </section>
 
 <section id="estimate">
-<h2><span class="no">7</span>補充保費估算</h2>
-<p>依「經費類別 › 經費屬性 › 預算科目」勾選要估算的組合，頁面會一次列出全部分組。</p>
-<p>可按經費類別、經費屬性或單位篩選；點「展開明細」查看每個單位與科目的可用餘額、估算母數及保費，亦可匯出 Excel。</p>
-<p class="formula">每筆估算母數 ＝ 該預算明細可用餘額，負數以 0 計。逐筆加總保費 ＝ 每筆母數乘共用倍率、四捨五入後再加總。整組直接算 ＝ 母數合計乘倍率後四捨五入。<small>共用倍率預設 2.11%。兩種保費數字同時呈現，差額來自逐筆四捨五入，由使用者自行判斷採用哪一個。</small></p>
+<h2><span class="no">9</span>補充保費估算</h2>
+<p>依預算明細的可用餘額，估算要預留多少補充保費。</p>
+<ol class="steps">
+<li><b>選取科目</b><p>按 <span class="ui">＋ 選取估算科目</span>，在各「經費類別 › 經費屬性」分組中勾選預算科目後儲存。已選取的科目列在頁面下方「已納入估算的科目」，可個別按 <span class="ui">刪除</span> 移除。</p></li>
+<li><b>確認倍率</b><p>右上方按鈕顯示「共用倍率」（預設 2.11%）。按下可修改，最多兩位小數，所有科目一起套用。</p></li>
+<li><b>查看結果</b><p>結果依經費類別和經費屬性分組，並列出類別小計和總合計。可依經費類別、經費屬性、單位篩選；按 <span class="ui">展開明細</span> 查看每個單位和科目。</p></li>
+<li><b>匯出</b><p>按 <span class="ui">匯出 Excel</span>，匯出內容依目前的篩選條件。</p></li>
+</ol>
+<p class="formula">計算方式：每筆預算明細的可用餘額（負數算 0）× 倍率<small>畫面並列兩種結果：「逐筆加總保費」是每筆先四捨五入再加總；「整組直接算」是先加總再四捨五入。兩者可能差幾元，請依單位規定擇一採用。</small></p>
 </section>
 
 <section id="application">
-<h2><span class="no">8</span>流用科目變更</h2>
-<p>查詢已流用紀錄對預算科目的影響。</p>
+<h2><span class="no">10</span>流用科目變更</h2>
+<p>查詢某一天或某段期間內，已流用紀錄讓各預算科目增減了多少。</p>
 <ol class="steps">
-<li>在 <span class="ui">流用科目變更</span> 填寫起日、迄日，或只填其中一個日期。</li>
-<li>點選 <span class="ui">查詢</span>，檢視預算科目變更前、變更後及增減金額。</li>
-<li>需要留存時，點選 <span class="ui">匯出此次查詢（Excel）</span>。</li>
+<li><b>填寫「起日」「迄日」</b><p>只填一個日期就是查那一天。</p></li>
+<li><b>按 <span class="ui">查詢</span></b><p>畫面列出各科目的變更前預算、變更後預算和增減。</p></li>
+<li><b>需要留存時，按 <span class="ui">匯出此次查詢（Excel）</span></b></li>
 </ol>
-<p>只填一個日期即查該日；填起訖日期則合併區間內所有有效流用。畫面依經費類別、經費屬性及預算科目分列，合併各單位金額。</p>
-<p>變更前預算＝目前初始預算加上起始日前已流用的淨流入；變更後預算＝目前初始預算加上結束日當天以前已流用的淨流入。起始日當天算在變更後；修改初始預算會影響過去區間的查詢結果。規劃中的流用不列入此報表。</p>
+<ul>
+<li>結果依經費類別、經費屬性、預算科目分列，並合併各單位金額；只列出有變動的科目。</li>
+<li>只計算 <span class="st st-executed">已流用</span> 的紀錄，<span class="key">不含規劃中</span>。</li>
+</ul>
+<div class="example"><b>例子：流用科目變更</b>
+<p>耗材初始預算 50,000 元。3/1 流入 5,000 元，3/10 流出 2,000 元。查詢 3/1～3/31 的結果：</p>
+<ul>
+<li>變更前預算：50,000 元（起日當天的流用算在變更後）</li>
+<li>變更後預算：53,000 元</li>
+<li>增減：＋3,000 元</li>
+</ul>
+</div>
+<div class="callout warn"><b>修改初始預算會影響過去的查詢結果</b><p>計算時使用的是<strong>目前</strong>的初始預算。日後修改初始預算，過去期間的查詢結果也會跟著改變。</p></div>
 </section>
 
 <section id="options">
-<h2><span class="no">9</span>選項資料</h2>
-<p>管理專案使用的經費類別、單位、經費屬性及預算科目。</p>
-<p>專案建立時，系統會自動建立部分預設選項（例如預設經費類別）。在 <span class="ui">選項資料</span> 確認現有選項，並管理專案使用的經費類別、單位、經費屬性及預算科目。</p>
-<div class="pair">
-<div><h4>預算匯入</h4><p>可在預覽後確認新增缺少的選項。</p></div>
-<div><h4>核銷、流用匯入及手動新增</h4><p>須使用現有選項；缺少時請先到「選項資料」新增。</p></div>
-</div>
-<div class="callout warn"><b>刪除前請注意</b>
-<p>刪除預算明細或選項前，系統會顯示相依資料及刪除影響。以下情況系統會阻止刪除：</p>
+<h2><span class="no">11</span>選項資料</h2>
+<p>管理本專案的單位、經費類別、經費屬性和預算科目。四種選項的意思見「基本名詞」。</p>
 <ul>
-<li>有核銷紀錄（包括作廢紀錄）</li>
-<li>有已流用紀錄</li>
-<li>有已鎖定的規劃流用</li>
-<li>刪除會造成經費上限不足</li>
+<li>頁面有四個分頁，每種選項一頁。</li>
+<li><strong>新增：</strong>按 <span class="ui">＋ 新增多筆選項</span>，選擇資料類型，輸入名稱；按 <span class="ui">＋ 新增一筆</span> 可一次新增多個同類型的選項。</li>
+<li><strong>改名：</strong>按該選項的 <span class="ui">編輯</span>。改名後，所有用到這個選項的預算、核銷和流用都會一起更新，包括已鎖定的流用。</li>
+<li>名稱中的全形英數字和符號會自動轉成半形，例如「Ａ單位」會存成「A單位」。</li>
 </ul>
-<p>可刪除時，確認前會列出將一併移除的資料。</p>
+<h3>哪裡可以使用尚未建立的選項</h3>
+<div class="pair">
+<div><h4>預算匯入</h4><p>缺少的選項會在確認匯入時自動新增。</p></div>
+<div><h4>核銷匯入、流用匯入、手動新增</h4><p>只能用已建立的選項，缺少時請先到 <span class="ui">選項資料</span> 新增。</p></div>
+</div>
+<h3>刪除選項</h3>
+<div class="callout warn"><b>以下情況不能刪除</b>
+<p>勾選後按 <span class="ui">刪除</span>，系統會先列出相關資料。</p>
+<ul>
+<li>有核銷紀錄（包括作廢的）</li>
+<li>有已流用紀錄</li>
+<li>有已鎖定的規劃中流用</li>
+<li>刪除後會讓其他經費額度不足</li>
+</ul>
+<p>可以刪除時，確認視窗會列出將一併刪除的資料，例如相關的預算明細、未鎖定的規劃中流用、估算科目設定和單位收件人。只是想改名稱時，請用 <span class="ui">編輯</span>，不要刪除。</p>
 </div>
 </section>
 
 <section id="email">
-<h2><span class="no">10</span>Email 經費報告</h2>
-<p>設定收件人、預覽郵件並確認寄送。</p>
-<p>Email 功能位於個別專案內。第一次使用前，請先依 <a href="系統設定 Gmail SMTP 教學.html">Gmail SMTP 設定教學</a> 完成寄件設定。</p>
+<h2><span class="no">12</span>Email 經費報告</h2>
+<p>把專案經費報告寄給各單位和主管。每次都由你手動選擇收件人、預覽並確認後才寄出，系統不會自動寄信。</p>
+<p>頁面上方有 <span class="ui">寄送報告</span> 按鈕，下方分成 <span class="ui">收件人清單</span>、<span class="ui">寄送紀錄</span>、<span class="ui">寄件設定</span> 三個分頁。</p>
+<h3>第一次使用：設定寄件信箱</h3>
 <ol class="steps">
-<li><b>設定 SMTP 寄件服務及收件人</b></li>
-<li><b>選擇收件對象</b><p>單位收件人固定收到其所屬單位資料。</p></li>
-<li><b>設定主管資料範圍</b><p>主管的資料範圍可在寄送時選擇。</p></li>
-<li><b>檢視郵件預覽</b></li>
-<li><b>確認寄送</b></li>
+<li><b>到 <span class="ui">寄件設定</span> 分頁，填寫寄信用的信箱設定（SMTP）</b><p>包括伺服器、連接埠、連線安全方式、登入帳號、密碼和寄件者顯示名稱。這些資料可向資訊人員取得；使用 Gmail 請參考 <a href="系統設定 Gmail SMTP 教學.html">Gmail SMTP 設定教學</a>。</p></li>
+<li><b>在測試收件信箱輸入自己的 Email，按 <span class="ui">儲存並寄送測試信</span></b><p>確認能收到信。也可以只按 <span class="ui">儲存寄件設定</span>。</p></li>
+</ol>
+<p>寄件設定全系統共用，在任一專案設定一次即可。密碼存在 Windows 的安全憑證區，不存在系統資料裡。</p>
+<h3>更換寄件密碼</h3>
+<p>到 <span class="ui">寄件設定</span> 分頁，在密碼欄輸入新密碼後儲存。密碼欄留白表示沿用原本的密碼。</p>
+<h3>新增、修改或刪除收件人</h3>
+<ul>
+<li><strong>新增：</strong>在 <span class="ui">收件人清單</span> 按 <span class="ui">新增收件人</span>，填寫類型、姓名／稱呼、Email、所屬單位。收件人只屬於目前這個專案。</li>
+<li><strong>修改：</strong>在該列按 <span class="ui">編輯</span>。</li>
+<li><strong>刪除：</strong>勾選後按 <span class="ui">刪除</span>。</li>
+<li>清單中的 Email 會部分隱藏，按 <span class="ui">檢視</span> 可看完整內容。</li>
+</ul>
+<div class="pair">
+<div><h4>單位收件人</h4><p>固定只收到所屬單位的資料。所屬單位沒有預算明細時，寄送時不會列出這位收件人。</p></div>
+<div><h4>主管</h4><p>每次寄送時，可以個別選擇要收到哪些資料。</p></div>
+</div>
+<h3>寄送報告</h3>
+<ol class="steps">
+<li><b>按 <span class="ui">寄送報告</span>，勾選這次要寄的收件人，按 <span class="ui">下一步</span></b></li>
+<li><b>選擇「報表附件格式」</b><p>Excel、Markdown、PDF 可複選，至少選一種。</p></li>
+<li><b>如果有選主管，為每位主管選擇資料範圍</b><p>「經費摘要」「本單位」「經費摘要＋指定單位」或「經費摘要＋全部單位」。選「指定單位」時可以複選單位。</p></li>
+<li><b>按 <span class="ui">查看信件預覽</span></b><p>點選信件查看內容，看完按 <span class="ui">關閉</span> 回到上一個畫面。<span class="key">預覽不會寄出郵件。</span></p></li>
+<li><b>按 <span class="ui">確認寄送</span>，在跳出的確認視窗按「確定」</b></li>
+<li><b>等待寄送完成</b><p>畫面顯示寄送進度，寄完前不能關閉。完成後會顯示成功、失敗的數量和失敗名單。</p></li>
 </ol>
 <ul>
-<li>每次報告涵蓋專案開始日至寄送當下的累計紀錄，不會按月自動寄送。</li>
-<li>每封郵件可附上所選格式的專案報表。</li>
-<li>寄送結果會逐位記錄；刪除寄送紀錄不會撤回已寄出的郵件。</li>
-<li>SMTP 設定全系統共用。密碼或應用程式專用密碼儲存在 Windows 安全憑證區，不存於 SQLite。同一 Windows 使用者帳戶下搬移專案資料夾可沿用設定；複製到其他電腦時需在新電腦重新輸入密碼。</li>
+<li>報告內容涵蓋專案開始日到寄送當下的所有紀錄，不需選擇月份。</li>
+<li>附件和 <span class="ui">匯出資料</span> 產生的報表格式相同。</li>
+<li>每位收件人的寄送結果都記錄在 <span class="ui">寄送紀錄</span> 分頁，按 <span class="ui">檢視</span> 可看錯誤原因。寄送失敗時，修正問題後重新寄送給那位收件人即可。</li>
+<li>刪除寄送紀錄不會收回已寄出的郵件。</li>
 </ul>
-<div class="callout"><b>預覽不會寄出</b><p>預覽郵件不會實際寄送。只有在檢視內容並確認寄送後，系統才會發出郵件。</p></div>
 </section>
 
 <section id="import">
-<h2><span class="no">11</span>匯入資料</h2>
-<p>預覽檔案檢查結果，確認後再匯入。</p>
-<p>系統支援 <code>.xlsx</code>、<code>.xlsm</code> 及 <code>.csv</code> 檔案匯入；Excel 檔案讀取第一個工作表。匯入前選擇資料類型並檢查預覽。<strong>預覽不會寫入資料</strong>；確認匯入後才會新增紀錄。</p>
-<p>核銷與流用日期範例：<code>2026/03/01</code>、<code>2026-3-1</code>、<code>20260301</code>。Excel 的數值日期儲存格可直接匯入；CSV 的純數字（例如 <code>46100</code>）不是日期。預算範本沒有日期欄。所有金額須為整數元，<code>100.0</code> 可接受，<code>100.5</code> 會被拒絕。</p>
-<p>選項名稱中的全形英數與符號會轉成半形，例如「Ａ單位」對應「A單位」、「業務費（一）」對應「業務費(一)」。</p>
-<div class="tbl"><table>
-<thead><tr><th>類型</th><th>檢查與行為</th></tr></thead>
-<tbody>
-<tr><td>預算</td><td>檢查欄位、選項及預算上限。確認匯入時，資料所需的新選項會同步建立在「選項資料」。</td></tr>
-<tr><td>核銷</td><td>可選擇每列建立獨立批次，或合併批次說明與登錄日期皆相同且非空白的資料。疑似與既有紀錄或檔內其他列重複時，會標示並要求確認。</td></tr>
-<tr><td>流用</td><td>正式金額欄名為「流用金額」；檢查流出／流入項目、經費屬性及可用餘額。預覽有錯誤時不可匯入；與既有紀錄或檔內其他列重複時，確認後仍可繼續匯入。</td></tr>
-</tbody></table></div>
-<h3>欄名檢查（三種匯入共用）</h3>
+<h2><span class="no">13</span>匯入資料</h2>
+<p>用 Excel 或 CSV 檔，一次新增很多筆預算、核銷或流用。</p>
+<h3>匯入步驟</h3>
+<ol class="steps">
+<li><b>在左側選擇 <span class="ui">匯入預算明細</span>、<span class="ui">匯入核銷紀錄</span> 或 <span class="ui">匯入流用紀錄</span></b><p>第一次使用，請先按頁面上的 <span class="ui">下載預算範本 CSV</span>（或核銷、流用範本），照範本的欄位名稱填寫資料。</p></li>
+<li><b>按 <span class="ui">開始匯入</span>，選取或拖曳檔案</b><p>支援 <code>.xlsx</code>、<code>.xlsm</code>、<code>.csv</code>，可以一次選多個檔案。Excel 檔只讀取第一個工作表。</p></li>
+<li><b>選擇匯入方式，按 <span class="ui">檢查並預覽</span></b><p>預覽會列出錯誤、警告和需要確認的項目。<span class="key">預覽不會寫入任何資料。</span></p></li>
+<li><b>確認沒問題後按 <span class="ui">確認匯入</span></b><p>有錯誤時無法匯入，請修正檔案後按 <span class="ui">上一步</span> 重新檢查。只要有一筆錯誤，整批都不會匯入。</p></li>
+</ol>
+<h3>匯入預算明細</h3>
 <ul>
-<li>空白欄名且整欄無資料時略過；有資料時指出欄位位置。</li>
-<li>未知欄名、重複欄名、同義欄位衝突或資料列欄數多於表頭時，會顯示錯誤並阻擋匯入。</li>
+<li>欄位：單位、經費類別、經費屬性、預算科目、初始預算，全部必填。</li>
+<li>缺少的選項會在確認匯入時自動新增。</li>
+<li>匯入方式：
+<ul>
+<li>「新增資料」：遇到已存在的相同預算明細會停止。</li>
+<li>「取代本專案全部預算」：刪除目前所有預算後重新建立。已有核銷或流用紀錄時不能使用。</li>
+</ul></li>
+</ul>
+<h3>匯入核銷紀錄</h3>
+<ul>
+<li>必填：經費類別、單位、經費屬性、預算科目、核銷金額。四項選項都必須已經建立。</li>
+<li>選填：登錄日期、憑證日期、批次說明、付款對象、分配金額、備註。登錄日期空白的列會是 <span class="st st-pending">待核銷</span>。</li>
+<li>找不到對應的預算明細時，預覽會列出，確認後建立 0 元明細。</li>
+<li>批次處理方式：
+<ul>
+<li>「每列獨立成批次」（預設）。</li>
+<li>「合併批次說明與登錄日期均相同的資料」：只有批次說明和登錄日期<strong>都有填寫、而且都相同</strong>的列才會合併。任一欄空白的列（例如待核銷）都各自成一批。</li>
+</ul></li>
+</ul>
+<h3>匯入流用紀錄</h3>
+<ul>
+<li>必填：流用日期、經費類別、流出單位、流出經費屬性、流出預算科目、流入單位、流入經費屬性、流入預算科目、流用金額。備註選填。</li>
+<li>匯入的流用<span class="key">一律是已流用、未鎖定</span>，不能匯入成規劃中。</li>
+<li>流入單位缺少預算明細時，確認後才建立 0 元明細。</li>
+</ul>
+<h3>資料格式</h3>
+<ul>
+<li><strong>日期：</strong>可寫成 <code>2026/03/01</code>、<code>2026-3-1</code> 或 <code>20260301</code>。Excel 的日期儲存格可以直接使用；CSV 裡的純數字（例如 <code>46100</code>）不會被當成日期。</li>
+<li><strong>金額：</strong>必須是整數元。<code>100.0</code> 可以，<code>100.5</code> 會被拒絕。</li>
+<li><strong>選項名稱：</strong>全形英數字和符號會轉成半形。</li>
+<li><strong>空白列：</strong>整列空白會略過。</li>
+</ul>
+<h3>預覽會檢查什麼</h3>
+<ul>
+<li><strong>欄位名稱：</strong>只接受範本上的欄位名稱。直接拿匯出的報表來匯入，通常會因欄位名稱不同而失敗。</li>
+<li><strong>疑似重複：</strong>核銷和流用會和既有紀錄及同一檔案的其他列比對。疑似重複時會標示出來，你確認後才能匯入。</li>
+<li><strong>日期警告：</strong>登錄日期晚於今天時會提醒，但不會阻擋匯入。</li>
+<li><strong>額度：</strong>匯入後不能超過專案和各層的經費額度。流用還會檢查流出項目的可用餘額，以及兩邊的經費屬性是否相同。</li>
 </ul>
 </section>
 
 <section id="export">
-<h2><span class="no">12</span>匯出資料</h2>
-<p>選擇範圍與格式，產生精簡報表。</p>
+<h2><span class="no">14</span>匯出資料</h2>
+<p>產生專案經費報表，用來留存或提供給別人。</p>
 <ol class="steps">
-<li><b>選擇範圍</b><p>在 <span class="ui">匯出資料</span> 選擇專案彙總、單位資料或兩者。</p></li>
-<li><b>選擇格式</b><p>Excel、Markdown 或 PDF。PDF 會開啟預覽，可使用瀏覽器列印或另存為 PDF。</p></li>
+<li><b>選擇資料範圍</b><p>「專案彙總」：專案經費總表、核銷彙總、流用紀錄。「所選單位」：各單位的經費總表、核銷明細、流用紀錄。「專案彙總＋所選單位」：兩者都有，放在同一份檔案的不同工作表。選到單位時，勾選要匯出的單位，可按 <span class="ui">全選單位</span>。</p></li>
+<li><b>選擇檔案格式</b><p>Excel、Markdown 或 PDF。</p></li>
+<li><b>設定其他選項（依前面的選擇才會出現）</b><p>「單位檔案方式」：只有選「所選單位」而且格式不是 PDF 時才會出現，可選合併成一份檔案（每個單位一個工作表），或每個單位分開、打包成 ZIP 壓縮檔。「PDF 紙張方向」：選 PDF 時出現，A4 橫式（預設）或直式。</p></li>
+<li><b>按 <span class="ui">產生匯出檔案</span></b><p>Excel 和 Markdown 會直接下載；PDF 會開啟預覽視窗，再用瀏覽器的列印功能或「另存為 PDF」儲存。</p></li>
 </ol>
 <ul>
-<li>首頁另可依專案狀態匯出專案清單。</li>
-<li>專案總表及單位經費表同時列帳面餘額與扣除規劃保留的可用餘額；「餘額說明」工作表解釋兩者。專案合計列執行率以專案經費總額為分母。</li>
-<li>一般匯出及 Email 附件的「流用紀錄」包含已流用與規劃中，並以狀態欄區分。</li>
-<li>流用科目變更匯出為單一 Excel 活頁簿，包含總表、每個經費類別工作表，以及只列查詢期間已流用紀錄的「流用紀錄」。</li>
+<li>經費表會同時列出帳面餘額和可用餘額，Excel 另附「餘額說明」工作表。</li>
+<li>「流用紀錄」包含已流用和規劃中，以狀態欄區分。</li>
+<li>專案清單、補充保費估算、流用科目變更，各自在自己的頁面匯出。</li>
 </ul>
-<div class="callout"><b>匯出檔不能直接匯回</b><p>匯出檔定位為精簡報表。新增資料請使用匯入範本。</p></div>
+<div class="callout"><b>匯出的報表不能直接匯回系統</b><p>要新增資料請用匯入範本；要保存或搬移完整資料請用資料庫備份。</p></div>
 </section>
 
 <section id="backup">
-<h2><span class="no">13</span>備份與還原</h2>
-<p>下載備份，並在需要時確認還原影響。</p>
+<h2><span class="no">15</span>備份與還原</h2>
+<p>保存完整資料，並在需要時還原。</p>
+<h3>下載備份</h3>
+<p>按左側下方的 <span class="ui">下載資料庫備份</span>，會下載一個 <code>.db</code> 檔，內含所有專案的資料，以及主題、背景圖片等設定。建議定期備份，並在刪除專案、取代預算、還原等重大操作前先備份。</p>
+<h3>還原備份</h3>
+<div class="callout danger"><b>還原會用備份檔完整取代目前所有資料</b><p>操作前請確認選的是正確的備份檔。</p></div>
+<ol class="steps">
+<li><b>按左側下方的 <span class="ui">還原資料庫備份</span>，選擇備份檔（<code>.db</code> 或 <code>.sqlite</code>）</b></li>
+<li><b>在確認視窗按「確定」</b></li>
+<li><b>系統檢查備份內容</b><p>如果發現帳務問題（例如核銷超過額度），會在「備份帳務問題」視窗逐項列出。按 <span class="ui">取消</span> 不會變更任何資料；按 <span class="ui">仍要還原</span> 才會繼續。</p></li>
+<li><b>還原完成後，畫面會回到「所有專案」</b></li>
+</ol>
+<p>還原前，系統會把目前的資料另存成 <code>data/經費管理.before-restore.db</code>。萬一選錯備份檔，可以再用 <span class="ui">還原資料庫備份</span> 選擇這個檔案救回來。</p>
+<p>系統運作時，不要用其他程式直接修改資料庫檔案。</p>
+</section>
+
+<section id="workflows">
+<h2><span class="no">16</span>常用流程</h2>
+<p>跨好幾個頁面的工作，依以下順序進行。</p>
+<h3>月底對帳</h3>
+<ol class="steps">
+<li><b>處理待核銷</b><p>到 <span class="ui">經費總覽</span> 的「待核銷」區塊，或 <span class="ui">核銷紀錄</span> 的 <span class="ui">待核銷</span> 分頁，補填已登錄批次的登錄日期。</p></li>
+<li><b>檢查超支</b><p>到 <span class="ui">預算明細</span> 的 <span class="ui">超支</span> 分頁，確認有沒有超支的科目，需要時用經費流用調整。</p></li>
+<li><b>處理規劃中流用</b><p>到 <span class="ui">經費流用</span> 的 <span class="ui">規劃中</span> 分頁，已定案的轉為已流用，不再需要的刪除。</p></li>
+<li><b>產生報表</b><p>到 <span class="ui">匯出資料</span> 產生報表，或用 <span class="ui">Email 經費報告</span> 寄給各單位。</p></li>
+<li><b>按 <span class="ui">下載資料庫備份</span></b></li>
+</ol>
+<h3>專案結案</h3>
+<p>系統沒有「結案」按鈕。執行迄日過後，專案會自動移到 <span class="ui">已完成</span> 分頁，資料仍然可以查看和修改。建議結案時：</p>
+<ol class="steps">
+<li><b>處理所有 <span class="st st-pending">待核銷</span></b><p>補填登錄日期，或作廢不會核銷的紀錄。</p></li>
+<li><b>處理所有 <span class="st st-planned">規劃中</span> 流用</b><p>轉為已流用或刪除。</p></li>
+<li><b>視需要把所有流用「鎖定」，防止誤改</b></li>
+<li><b>到 <span class="ui">匯出資料</span> 匯出最終報表留存</b></li>
+<li><b>按 <span class="ui">下載資料庫備份</span></b></li>
+</ol>
+<h3>搬到另一台電腦</h3>
+<ol class="steps">
+<li><b>在舊電腦按 <span class="ui">下載資料庫備份</span></b></li>
+<li><b>把整個系統資料夾複製到新電腦，雙擊「啟動經費管理.bat」</b><p>新電腦需要先安裝 Python。</p></li>
+<li><b>在新電腦按 <span class="ui">還原資料庫備份</span>，選擇剛才的備份檔</b></li>
+<li><b>重新輸入寄件密碼</b><p>到 <span class="ui">Email 經費報告</span> → <span class="ui">寄件設定</span> 輸入，因為密碼不會跟著備份移動。</p></li>
+</ol>
+</section>
+
+<section id="recovery">
+<h2><span class="no">17</span>出錯補救</h2>
+<p>操作錯誤時的處理方式，以及系統做不到的事。</p>
+<div class="tbl"><table>
+<thead><tr><th>發生什麼事</th><th>怎麼補救</th></tr></thead>
+<tbody>
+<tr><td>匯入錯了</td><td>系統<span class="key">沒有撤銷匯入</span>的功能。匯入前有備份的話，用 <span class="ui">還原資料庫備份</span> 還原。沒有備份時，到清單中找出這些資料逐一刪除或修改。預算如果還沒有核銷和流用，可以用「取代本專案全部預算」重新匯入正確的檔案。</td></tr>
+<tr><td>核銷的單位、科目或金額填錯</td><td>在 <span class="ui">核銷紀錄</span> 該列按 <span class="ui">編輯</span> 修改。</td></tr>
+<tr><td>登錄日期填錯</td><td>開啟批次面板，按 <span class="ui">編輯批次</span> 修改。整批明細會一起變更。</td></tr>
+<tr><td>明細放錯批次</td><td>明細<span class="key">不能移到其他批次</span>。請刪除後，在正確的批次重新新增。</td></tr>
+<tr><td>不小心作廢</td><td>到 <span class="ui">作廢</span> 分頁勾選，按 <span class="ui">復原</span>。</td></tr>
+<tr><td>刪錯核銷</td><td>刪除<span class="key">無法復原</span>。按 <span class="ui">刪除紀錄</span> 查看原本的內容，再重新新增；或還原刪除前的備份。</td></tr>
+<tr><td>已流用的內容填錯</td><td>按 <span class="ui">編輯</span> 修改。已鎖定的話，先 <span class="ui">解鎖</span>。</td></tr>
+<tr><td>選項名稱打錯</td><td>到 <span class="ui">選項資料</span> 按 <span class="ui">編輯</span> 改名，相關資料會一起更新。</td></tr>
+<tr><td>還原時選錯備份檔</td><td>用 <span class="ui">還原資料庫備份</span> 選擇 <code>data/經費管理.before-restore.db</code>。</td></tr>
+<tr><td>Email 寄錯人或寄錯內容</td><td>已寄出的郵件<span class="key">無法收回</span>，請另行聯絡收件人。</td></tr>
+</tbody></table></div>
+<h3>系統做不到的事</h3>
 <ul>
-<li>使用側邊欄的 <span class="ui">下載資料庫備份</span> 定期備份。</li>
-<li>搬移到另一台電腦時，請備份並移轉資料庫。</li>
+<li>撤銷匯入</li>
+<li>把核銷明細移到其他批次</li>
+<li>救回已刪除的核銷或專案（只能從備份還原）</li>
+<li>收回已寄出的郵件</li>
+<li>自動定期寄送 Email</li>
+<li>依日期範圍匯出核銷紀錄</li>
+<li>手動結案或封存專案</li>
+<li>多人同時使用，或從其他電腦連線使用</li>
 </ul>
-<div class="callout danger"><b>還原會完整取代目前資料</b>
-<p>還原備份會以備份檔完整取代目前資料；操作前請確認選取的是正確備份檔。</p>
-<p>系統會先唯讀檢查備份內的專案、經費類別、單位、組合、規劃圈存及明細額度；若有問題，逐項列出超出金額。取消時不取代資料，按「仍要還原」才繼續。</p>
-<p>不要在系統運作時使用其他程式直接修改資料庫。</p>
-</div>
 </section>
 
 <section id="interface">
-<h2><span class="no">14</span>表單與畫面操作</h2>
-<p>使用鍵盤捷徑和表格控制項完成日常操作。</p>
+<h2><span class="no">18</span>表單與畫面操作</h2>
+<p>常用的快捷操作與畫面設定。</p>
+<h3>表單</h3>
 <div class="tbl"><table>
 <thead><tr><th>操作</th><th>說明</th></tr></thead>
 <tbody>
 <tr><td><kbd>Ctrl</kbd> + <kbd>S</kbd></td><td>儲存表單。</td></tr>
-<tr><td><kbd>Esc</kbd> 或「關閉表單」</td><td>關閉表單；若有未儲存內容，系統會先詢問。</td></tr>
+<tr><td><kbd>Esc</kbd> 或「關閉表單」</td><td>關閉表單；有未儲存的內容時，會先詢問。點擊表單外面不會關閉表單。</td></tr>
+<tr><td>「儲存資料後不關閉表單」</td><td>新增資料時預設勾選，按鈕顯示 <span class="ui">儲存並保持開啟</span>，儲存後清空欄位方便連續輸入。取消勾選後，按鈕變成 <span class="ui">儲存並關閉</span>。編輯既有資料時，儲存後不會清空。</td></tr>
 </tbody></table></div>
 <ul>
-<li>日期使用西元年格式；金額以新臺幣整數元輸入與保存。</li>
-<li>表格可調整每頁筆數；多數表格可點擊標題排序，也可設定欄位對齊。</li>
-<li>主題設定可切換淺色或深色、設定自訂顏色、上傳或移除背景圖片，以及更換品牌圖示。</li>
+<li>欄位會標示「必填」或「選填」。</li>
+<li>有選項的欄位可以直接打字篩選，也可以展開清單選取；必須選中清單裡的項目才能儲存。需要先選前一欄時，欄位下方會提示。</li>
+<li>日期使用西元年，格式是「年/月/日」，例如 2026/03/01。金額輸入時會自動加上千分位逗號，以新臺幣整數元儲存。</li>
+</ul>
+<h3>表格</h3>
+<ul>
+<li>可以選每頁顯示 5、15、25、50 筆或不限，預設 5 筆。</li>
+<li>點欄位標題可以排序（預算明細表除外）。</li>
+<li>按表格上的「欄位對齊」，可把各欄設為靠左、置中、靠右或「依資料類型」。設定只套用在這張表。</li>
+<li>勾選每列第一欄可以選取資料；勾選標題列的核取方塊會選取這一頁的全部資料。</li>
+</ul>
+<h3>外觀設定</h3>
+<ul>
+<li><strong>主題：</strong>頂端 <span class="ui">主題</span> 選單可切換淺色、深色或自訂顏色。自訂顏色時，系統會提示文字是否清楚易讀。</li>
+<li><strong>背景圖片：</strong>開啟 <span class="ui">主題</span> 選單，選 <span class="ui">背景</span>，再選 <span class="ui">上傳背景</span> 或 <span class="ui">移除背景</span>。</li>
+<li><strong>左上角圖示：</strong>點選左上角的圖示，可改用 Emoji 或上傳圖片。</li>
 </ul>
 </section>
 
 <section id="faq">
-<h2><span class="no">15</span>常見問題</h2>
-<p>依畫面現象檢查常見操作問題。</p>
-<details class="faq"><summary>匯入預覽出現欄名錯誤怎麼辦？</summary><div><dl>
-<dt>現象</dt><dd>預覽顯示未知、重複或衝突欄名，不能匯入。</dd>
-<dt>原因</dt><dd>檔案欄名不符合匯入範本，或資料欄數超過表頭。</dd>
-<dt>解法</dt><dd>依預覽指出的位置修正欄名與欄數，再重新預覽；新增資料請使用匯入範本。</dd>
+<h2><span class="no">19</span>常見問題</h2>
+<p>依畫面現象查找原因和解法。</p>
+<details class="faq"><summary>核銷時顯示超過上限，不能儲存？</summary><div><dl>
+<dt>原因</dt><dd>待核銷也會占用額度；規劃中流用的圈存也會減少可用餘額。</dd>
+<dt>解法</dt><dd>看訊息指出是哪一項超過。可以先用經費流用把錢挪進來，或檢查有沒有不再需要的規劃中流用或待核銷紀錄可以刪除。</dd>
 </dl></div></details>
-<details class="faq"><summary>刪除預算明細或選項被阻止怎麼辦？</summary><div><dl>
-<dt>現象</dt><dd>確認視窗標題顯示「無法刪除」，並列出阻擋原因。</dd>
-<dt>原因</dt><dd>可能已有核銷、已流用或已鎖定的規劃流用，或刪除會使經費上限不足。</dd>
-<dt>解法</dt><dd>使用「檢視相關資料」查看原因；受保護帳務資料不能一併刪除。</dd>
+<details class="faq"><summary>流用紀錄沒有編輯按鈕，或刪不掉？</summary><div><dl>
+<dt>原因</dt><dd>這筆流用已鎖定（列上顯示鎖頭圖示 🔒）。</dd>
+<dt>解法</dt><dd>勾選後按 <span class="ui">解鎖</span>，確認後就能編輯或刪除。</dd>
 </dl></div></details>
-<details class="faq"><summary>Email 預覽後為什麼沒有寄出？</summary><div><dl>
-<dt>現象</dt><dd>已看過郵件預覽，但收件人沒有收到報告。</dd>
-<dt>原因</dt><dd>預覽不會實際寄送。</dd>
-<dt>解法</dt><dd>核對收件人與內容後，明確執行「確認寄送」；再查看逐位寄送結果。</dd>
+<details class="faq"><summary>流用科目變更查不到剛建立的流用？</summary><div><dl>
+<dt>原因</dt><dd>這筆流用還是規劃中，或流用日期不在查詢期間內。</dd>
+<dt>解法</dt><dd>確認已轉為已流用，並檢查查詢的起訖日期。</dd>
+</dl></div></details>
+<details class="faq"><summary>匯入時顯示欄位名稱錯誤？</summary><div><dl>
+<dt>原因</dt><dd>檔案的欄位名稱和範本不同。最常見的情況是直接拿匯出的報表來匯入。</dd>
+<dt>解法</dt><dd>下載範本 CSV，照範本的欄位名稱整理資料，再重新預覽。</dd>
+</dl></div></details>
+<details class="faq"><summary>刪除預算明細或選項時，出現「無法刪除」？</summary><div><dl>
+<dt>原因</dt><dd>已經有核銷、已流用紀錄或已鎖定的規劃中流用，或刪除後會讓其他額度不足。</dd>
+<dt>解法</dt><dd>按「檢視相關資料」查看原因。核銷和已流用紀錄是帳務資料，不能一起刪除。只是想改名稱時，請用 <span class="ui">編輯</span>。</dd>
+</dl></div></details>
+<details class="faq"><summary>PDF 匯出沒有出現預覽？</summary><div><dl>
+<dt>原因</dt><dd>瀏覽器擋住了彈出視窗，或還沒安裝 PDF 選用套件。</dd>
+<dt>解法</dt><dd>允許這個網站開啟彈出視窗。如果還沒安裝套件，依「開始使用」中的說明安裝。</dd>
+</dl></div></details>
+<details class="faq"><summary>Email 看過預覽，收件人卻沒收到？</summary><div><dl>
+<dt>原因</dt><dd>預覽不會寄出郵件。</dd>
+<dt>解法</dt><dd>關閉預覽後按 <span class="ui">確認寄送</span>，在確認視窗按「確定」，再到 <span class="ui">寄送紀錄</span> 查看每位收件人的結果。</dd>
 </dl></div></details>
 </section>
 
-<p class="footer">本手冊依目前系統功能與專案說明整理。操作畫面若因版本更新而有差異，請以系統畫面提示為準。相關手冊：<a href="系統設定 Gmail SMTP 教學.html">Gmail SMTP 設定教學</a>。</p>
+<p class="footer">相關手冊：<a href="系統設定 Gmail SMTP 教學.html">Gmail SMTP 設定教學</a>。本手冊依目前系統功能整理；若畫面因版本更新而不同，請以系統畫面為準。給 AI 工具讀取時，請優先使用 <code>系統操作手冊.md</code>。</p>
 </main>
 </div>
 <script src="assets/manual.js"></script>

@@ -21,7 +21,7 @@
 
 ## 文件
 
-- [系統操作手冊](docs/系統操作手冊.html)：各功能的使用概覽與操作注意事項。
+- [系統操作手冊](docs/系統操作手冊.html)：各功能的操作步驟、常用流程與出錯補救。同內容的 [Markdown 版](docs/系統操作手冊.md) 供 AI 工具讀取；請 AI 回答操作問題時，優先提供 Markdown 版。
 - [Gmail SMTP 設定教學](docs/系統設定%20Gmail%20SMTP%20教學.html)：設定 Gmail 寄件服務及測試寄信。
 - [開發維護參考](SYSTEM_REFERENCE.md)：詳細欄位、匯入匯出規則、業務行為與邊界情況。
 - [產品規格](PRODUCT_SPEC.md)、[開發規則](DEVELOPMENT_RULES.md)、[介面規範](UI_DESIGN_RULES.md)：開發與維護參考。

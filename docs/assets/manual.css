@@ -1,22 +1,45 @@
+/* 配色沿用系統「淺色」主題（src/static/style.css :root）；深色模式見下方。 */
 :root{
   color-scheme:light;
-  --bg:#F4F1EC;--paper:#FFFFFF;--ink:#1F2937;--muted:#5B6472;--line:#DAD3C6;
-  --soft:#FAF8F4;--head:#EFEAE1;--accent:#2F6F62;--accent-soft:#E4F0EC;
-  --warn:#8A5410;--warn-bg:#FFF4E2;--danger:#A8423B;--danger-bg:#FCEDEA;--code:#F1ECE3;
+  --bg:#F4F1EC;--paper:#FFFFFF;--ink:#1F2937;--muted:#4B5563;--line:#DAD3C6;
+  --soft:#FAF8F4;--head:#E8E2D8;--accent:#2F6F62;--accent-soft:#E4F0EC;
+  --warn:#8A5410;--warn-bg:#FFF1E6;--danger:#A8423B;--danger-bg:#FCEDEA;--code:#F1ECE3;
+  /* 狀態標籤：與系統畫面一致，需注意的狀態用琥珀色，超支用紅色 */
+  --st-amber:#8A5410;--st-amber-bg:#FFF1E6;--st-amber-line:#E9C48A;
+  --st-red:#A8423B;--st-red-bg:#FCEDEA;--st-red-line:#E7B4AE;
+  --st-green:#237455;--st-green-bg:#E4F0EC;--st-green-line:#A9D2C3;
+  --st-gray:#4B5563;--st-gray-bg:#EEF0F2;--st-gray-line:#CBD0D6;
+  --st-blue:#2F5277;--st-blue-bg:#E7EEF6;--st-blue-line:#B5C7DC;
+  --example-bg:#F5FAF8;
   --fs-sm:14px;--fs-md:16px;--radius:10px
 }
-@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+/* 電腦或瀏覽器為深色模式時，改用系統「深色」主題色票（src/static/style.css :root[data-theme="dark"]）。列印一律使用淺色。 */
+@media screen and (prefers-color-scheme:dark){:root{
   color-scheme:dark;
-  --bg:#111827;--paper:#1A2231;--ink:#E8EAED;--muted:#A3ACB9;--line:#364152;
-  --soft:#1F2937;--head:#263244;--accent:#7CC4B2;--accent-soft:#1D3833;
-  --warn:#F2C46D;--warn-bg:#3A3020;--danger:#F2A39D;--danger-bg:#3E2528;--code:#263244
+  --bg:#111827;--paper:#1F2937;--ink:#EDEDED;--muted:#9CA3AF;--line:#4B5563;
+  --soft:#263244;--head:#374151;--accent:#EDEDED;--accent-soft:#263244;
+  --warn:#FCD34D;--warn-bg:#493D27;--danger:#FCA5A5;--danger-bg:#4B2930;--code:#374151;
+  --st-amber:#FCD34D;--st-amber-bg:#493D27;--st-amber-line:#8A7135;
+  --st-red:#FCA5A5;--st-red-bg:#4B2930;--st-red-line:#8C4A52;
+  --st-green:#A7F3D0;--st-green-bg:#1F3A33;--st-green-line:#3F7A66;
+  --st-gray:#D1D5DB;--st-gray-bg:#374151;--st-gray-line:#6B7280;
+  --st-blue:#BFD3EA;--st-blue-bg:#26364A;--st-blue-line:#4F6A8A;
+  --example-bg:#1F3A33
 }}
-:root[data-theme="dark"]{
-  color-scheme:dark;
-  --bg:#111827;--paper:#1A2231;--ink:#E8EAED;--muted:#A3ACB9;--line:#364152;
-  --soft:#1F2937;--head:#263244;--accent:#7CC4B2;--accent-soft:#1D3833;
-  --warn:#F2C46D;--warn-bg:#3A3020;--danger:#F2A39D;--danger-bg:#3E2528;--code:#263244
-}
+/* 狀態標籤：同時用文字與顏色，不只靠顏色辨識 */
+.st{display:inline-block;padding:0 .5em;border:1px solid;border-radius:999px;font-size:.9em;font-weight:700;line-height:1.6;white-space:nowrap}
+.st-pending,.st-planned{color:var(--st-amber);background:var(--st-amber-bg);border-color:var(--st-amber-line)}
+.st-over{color:var(--st-red);background:var(--st-red-bg);border-color:var(--st-red-line)}
+.st-done,.st-executed{color:var(--st-green);background:var(--st-green-bg);border-color:var(--st-green-line)}
+.st-void{color:var(--st-gray);background:var(--st-gray-bg);border-color:var(--st-gray-line)}
+.st-locked{color:var(--st-blue);background:var(--st-blue-bg);border-color:var(--st-blue-line)}
+.key{color:var(--danger);font-weight:700}
+.ai-note{margin:16px 0 0;padding:12px 16px;border:1px solid var(--st-blue-line);border-left:4px solid var(--st-blue);border-radius:0 var(--radius) var(--radius) 0;background:var(--st-blue-bg)}
+.ai-note b{color:var(--st-blue)}
+.ai-note p{margin:.2rem 0;max-width:none}
+.example{margin:1rem 0;padding:12px 16px;border:1px solid var(--st-green-line);border-radius:var(--radius);background:var(--example-bg)}
+.example>b:first-child{display:block;margin-bottom:2px;color:var(--st-green)}
+.example p,.example ul{margin:.3rem 0}
 *{box-sizing:border-box}
 html{scroll-behavior:smooth}
 @media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
@@ -76,7 +99,7 @@ table{border-collapse:collapse;width:100%;font-size:.95rem}
 th,td{padding:.6rem .85rem;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
 th{background:var(--head);font-weight:700;white-space:nowrap}
 tr:last-child td{border-bottom:0}
-td:first-child{font-weight:700;white-space:nowrap}
+td:first-child{font-weight:700;min-width:7em}
 /* 雙欄比較卡 */
 .pair{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:1rem 0}
 .pair>div{padding:14px 16px;border:1px solid var(--line);border-radius:var(--radius);background:var(--soft)}
