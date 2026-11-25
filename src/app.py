@@ -212,6 +212,9 @@ def initialize():
         BEGIN SELECT RAISE(ABORT,'收件人所屬單位必須屬於此專案'); END;
         """)
         db.execute("INSERT OR IGNORE INTO app_settings(key,value) VALUES('default_estimate_rate','2.11')")
+        if not db.execute("SELECT 1 FROM app_settings WHERE key='table_alignments_reset_20261125'").fetchone():
+            db.execute("INSERT INTO app_settings(key,value) VALUES('table_alignments','{}') ON CONFLICT(key) DO UPDATE SET value=excluded.value")
+            db.execute("INSERT INTO app_settings(key,value) VALUES('table_alignments_reset_20261125','1')")
         install_row=db.execute("SELECT value FROM app_settings WHERE key='smtp_install_id'").fetchone()
         if not install_row:
             install_id=secrets.token_hex(16)
@@ -1618,8 +1621,8 @@ def apply_action(a):
     raise ValueError('不支援的操作')
 
 
-BUDGET_IMPORT_HEADERS={'單位':'owner','經費類別':'source','經費屬性':'category','預算科目':'subject','初始預算':'initial'}
-EXPENSE_IMPORT_HEADERS={'批次說明':'batch_description','登錄日期':'submitted_date','憑證日期':'voucher_date','經費類別':'source','單位':'owner','預算科目':'subject','經費屬性':'category','核銷金額':'amount','付款對象':'payee_names','分配金額':'payee_amounts','備註':'note'}
+BUDGET_IMPORT_HEADERS={'經費類別':'source','單位':'owner','經費屬性':'category','預算科目':'subject','初始預算':'initial'}
+EXPENSE_IMPORT_HEADERS={'批次說明':'batch_description','登錄日期':'submitted_date','憑證日期':'voucher_date','經費類別':'source','單位':'owner','經費屬性':'category','預算科目':'subject','核銷金額':'amount','付款對象':'payee_names','分配金額':'payee_amounts','備註':'note'}
 TRANSFER_IMPORT_HEADERS={'流用日期':'date','經費類別':'source','流出單位':'from_owner','流出經費屬性':'from_category','流出預算科目':'from_subject','流入單位':'to_owner','流入經費屬性':'to_category','流入預算科目':'to_subject','流用金額':'amount','備註':'note'}
 
 
@@ -2228,7 +2231,7 @@ class Handler(BaseHTTPRequestHandler):
             try:self.send(200,json.dumps(bootstrap(),ensure_ascii=False))
             except Exception as e:self.send(500,json.dumps({'error':display_error(e)},ensure_ascii=False))
         elif path=='/api/template.csv':
-            out=io.StringIO(); w=csv.writer(out); w.writerow(['單位','經費類別','經費屬性','預算科目','初始預算']); w.writerow(['王小明','補助款','業務費','講座鐘點費','10000']); self.send(200,'\ufeff'+out.getvalue(),'text/csv; charset=utf-8')
+            out=io.StringIO(); w=csv.writer(out); w.writerow(['經費類別','單位','經費屬性','預算科目','初始預算']); w.writerow(['補助款','王小明','業務費','講座鐘點費','10000']); self.send(200,'\ufeff'+out.getvalue(),'text/csv; charset=utf-8')
         elif path=='/api/expense-template.csv':
             out=io.StringIO(); w=csv.writer(out); w.writerow(['登錄日期','憑證日期','經費類別','單位','經費屬性','預算科目','核銷金額','批次說明','付款對象','分配金額','備註']); w.writerow(['2026/02/28','2026/02/27','補助款','王小明','業務費','講座鐘點費','2000','A活動第一批','講師甲；講師乙','1200；800','A活動鐘點費']); w.writerow(['2026-2-28','20260227','補助款','王小明','人事費','補充保費','42','A活動第一批','','','A活動補充保費']); w.writerow(['','20260303','補助款','王小明','業務費','講座鐘點費','2000','','','','無批次資訊範例']); self.send(200,'\ufeff'+out.getvalue(),'text/csv; charset=utf-8')
         elif path=='/api/transfer-template.csv':
@@ -2412,11 +2415,11 @@ class Handler(BaseHTTPRequestHandler):
                         normalized=[clean_option_fields({mapped.get(str(k).strip(),str(k).strip()):v for k,v in r.items()}) for r in file_rows]
                         required={'source','owner','category','subject','initial'}
                         header_fields={mapped.get(str(h).strip(),str(h).strip()) for h in file_rows.headers if str(h or '').strip()}
-                        if not required.issubset(header_fields):errors.append(f"{f['name']}：缺少必填欄位（單位、經費類別、經費屬性、預算科目、初始預算）")
+                        if not required.issubset(header_fields):errors.append(f"{f['name']}：缺少必填欄位（經費類別、單位、經費屬性、預算科目、初始預算）")
                         for i,row in zip(file_rows.row_numbers,normalized):
                             if is_blank_import_row(row):continue
                             row['_file']=f['name'];row['_row_number']=i
-                            missing=[label for key,label in [('owner','單位'),('source','經費類別'),('category','經費屬性'),('subject','預算科目'),('initial','初始預算')] if not str(row.get(key) or '').strip()]
+                            missing=[label for key,label in [('source','經費類別'),('owner','單位'),('category','經費屬性'),('subject','預算科目'),('initial','初始預算')] if not str(row.get(key) or '').strip()]
                             if missing:errors.append(f"{f['name']} 第 {i} 列：必填欄位空白（{'、'.join(missing)}）")
                             elif not re.fullmatch(r'\s*[+-]?(?:\d+|\d{1,3}(?:,\d{3})+)(?:\.\d+)?\s*',str(row.get('initial',''))):errors.append(f"{f['name']} 第 {i} 列：初始預算必須是數字")
                             else:

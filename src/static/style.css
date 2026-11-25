@@ -960,6 +960,12 @@ select option {
   stroke:var(--green);
   stroke-width:3
 }
+.chart-forecast{stroke:var(--amber);stroke-dasharray:8 5}
+.forecast-dot{stroke:var(--amber)}
+.overview-chart-legend{display:flex;gap:16px;align-items:center;padding:0 8px;color:var(--ink);font-size:var(--fs-xs)}
+.overview-chart-legend span{display:inline-flex;gap:6px;align-items:center}
+.overview-chart-legend i{display:inline-block;width:18px;border-top:3px solid var(--green)}
+.overview-chart-legend .legend-forecast{border-color:var(--amber);border-top-style:dashed}
 
 /* == 元件：表格操作與導覽 == */
 .table th.action-col,.table td.action-col {
@@ -1166,6 +1172,14 @@ html {
 .table th.select-col{z-index:var(--z-table-lock);background:var(--table-head)}
 .table th.lock-col,.table td.lock-col{position:sticky;left:52px;width:28px;min-width:28px;max-width:28px;padding:6px 2px;text-align:center;z-index:var(--z-sticky);background:var(--table-surface)}
 .table th.lock-col{z-index:var(--z-table-lock);background:var(--table-head)}
+.table thead th.select-col{position:sticky;top:0;left:0;z-index:calc(var(--z-table-lock) + 2);background:var(--table-head)}
+.table thead th.lock-col{position:sticky;top:0;left:52px;z-index:calc(var(--z-table-lock) + 2);background:var(--table-head)}
+.table thead th.action-col{position:sticky;top:0;right:0;z-index:calc(var(--z-table-lock) + 2);background:var(--table-head)}
+.table-component[data-table-key^="overview:source:"] .table th:nth-child(1),.table-component[data-table-key^="overview:source:"] .table td:nth-child(1),.table-component[data-table-key^="overview:owner:"] .table th:nth-child(1),.table-component[data-table-key^="overview:owner:"] .table td:nth-child(1){position:sticky;left:0;z-index:var(--z-sticky);background:var(--table-surface)}
+.table-component[data-table-key^="overview:source:"] .table th:nth-child(2),.table-component[data-table-key^="overview:source:"] .table td:nth-child(2){position:sticky;left:var(--first-sticky-width,130px);z-index:var(--z-sticky);background:var(--table-surface)}
+.table-component[data-table-key^="overview:source:"] .table thead th:nth-child(-n+2),.table-component[data-table-key^="overview:owner:"] .table thead th:first-child{top:0;z-index:calc(var(--z-table-lock) + 2);background:var(--table-head)}
+.table-component[data-table-key^="overview:source:"] .table tbody tr:hover td:nth-child(-n+2),.table-component[data-table-key^="overview:owner:"] .table tbody tr:hover td:first-child{background:var(--hover-surface)}
+.table-component[data-table-key^="overview:source:"] .table tbody tr.source-total td:nth-child(-n+2){background:var(--table-surface)}
 .table tbody tr:hover>td.lock-col{background:var(--hover-surface)}
 .transfer-locked-row .action-col .smallbtn{visibility:hidden;pointer-events:none}
 .transfer-toolbar-line{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:6px}
@@ -1339,7 +1353,8 @@ body.overlay-open{position:fixed;left:0;right:0;width:100%;overflow:hidden;overs
 /* Main list pages grow with their rows. Keep only horizontal table scrolling;
    the document owns vertical scrolling so rows retain their natural height. */
 body.table-workspace-page #content .table-wrap{scroll-margin-top:88px;max-height:none;overflow-x:auto;overflow-y:visible;overscroll-behavior-x:contain;overscroll-behavior-y:auto;scrollbar-gutter:auto}
-body.table-workspace-page #content .table-wrap .table thead th{position:static}
+body.table-workspace-page #content .table-wrap .table thead th:not(.select-col):not(.lock-col):not(.action-col){position:static}
+body.table-workspace-page #content .table-wrap .table thead th:is(.select-col,.lock-col,.action-col){top:auto}
 
 .system-guard{position:fixed;inset:0;z-index:var(--z-system-guard);display:grid;place-items:center;padding:24px;background:var(--canvas,#f4f1ec);color:var(--ink,#1f2937)}
 .system-guard[hidden]{display:none!important}
