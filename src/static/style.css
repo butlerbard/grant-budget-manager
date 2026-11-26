@@ -25,7 +25,7 @@
   --fs-xs:12px; --fs-sm:13px; --fs-md:14px; --fs-lg:16px; --fs-xl:20px; --fs-2xl:25px;
   --space-1:4px; --space-2:8px; --space-3:12px; --space-4:16px; --space-5:24px; --space-6:32px;
   --z-sticky:5; --z-dropdown:30; --z-modal:20; --z-modal-nested:32; --z-toast:40; --z-choice:120; --z-choice-fixed:1000;
-  --z-wizard:1300; --z-transfer-confirm:1320; --z-expense-confirm:1330; --z-email:1500; --z-email-preview:1510; --z-email-message:1520; --z-system-guard:100000; --z-table-head:4; --z-table-lock:8; --z-action:2; --z-action-cell:3; --z-base:1; --z-sticky-nav:4; --z-sort:6; --z-backdrop-top:7;
+  --z-wizard:1300; --z-expense-confirm:1330; --z-email:1500; --z-email-preview:1510; --z-email-message:1520; --z-system-guard:100000; --z-table-head:4; --z-table-lock:8; --z-action:2; --z-action-cell:3; --z-base:1; --z-sticky-nav:4; --z-sort:6; --z-backdrop-top:7;
 }
 :root[data-theme="light"] {
   color-scheme:light;
@@ -643,7 +643,7 @@ select:focus,input:focus,textarea:focus {
   margin-top:21px
 }
 
-.modal:not(.import-wizard-modal):not(.transfer-category-modal):not(.dependency-detail-dialog):not(.expense-budget-confirm)>.modal-head {
+.modal:not(.import-wizard-modal):not(.dependency-detail-dialog):not(.expense-budget-confirm)>.modal-head {
   position:sticky;
   top:-24px;
   z-index:var(--z-base);
@@ -652,7 +652,7 @@ select:focus,input:focus,textarea:focus {
   background:var(--paper)
 }
 
-.modal:not(.import-wizard-modal):not(.transfer-category-modal):not(.dependency-detail-dialog)>.modal-actions {
+.modal:not(.import-wizard-modal):not(.dependency-detail-dialog)>.modal-actions {
   position:sticky;
   bottom:-24px;
   z-index:var(--z-base);
@@ -774,13 +774,6 @@ select option {
 
 .modal-actions .shortcut-hint { font-size:var(--fs-xs); align-self:center; white-space:nowrap }
 
-.modal-actions .keep-open-hint {
-  margin-right:auto;
-  display:flex;
-  align-items:center;
-  gap:6px
-}
-
 .modal-actions input[type=checkbox] {
   width:auto;
   padding:0;
@@ -830,11 +823,11 @@ select option {
   color:var(--muted)
 }
 
-.estimate-row-wrap,.option-row-wrap {
+.option-row-wrap {
   margin:8px 0
 }
 
-.estimate-row-wrap>label,.option-row-wrap>label {
+.option-row-wrap>label {
   display:block;
   margin-bottom:5px;
   font-size:var(--fs-xs);
@@ -842,7 +835,7 @@ select option {
   font-weight:600
 }
 
-.estimate-row,.option-row {
+.option-row {
   grid-template-columns:1fr 36px
 }
 
@@ -1128,7 +1121,7 @@ html {
   border:3px solid var(--scrollbar-thumb-border,var(--scrollbar-track,var(--canvas)));
   border-radius:999px
 }
-.modal,.choice-list,.transfer-category-items,.import-wizard-body,
+.modal,.choice-list,.import-wizard-body,
 .email-flow-content,.email-flow-list,.email-message-list,.mail-failures {
   --scrollbar-track:var(--paper);
   --scrollbar-thumb:var(--line);
@@ -1142,7 +1135,7 @@ html {
    and per-table settings share the next line. */
 .list-filter-row{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;padding:0 0 6px;border:0}
 .list-filter-row .status-tabs{display:flex;align-items:center;gap:4px;padding:0;margin:0;border:0}
-.status-tabs button,.workspace-tab{border:0;border-radius:6px;padding:7px 10px;background:transparent;color:var(--ink);font:inherit;font-size:var(--fs-sm);white-space:nowrap;cursor:pointer}
+.status-tabs button,.workspace-tab{border:1px solid var(--line);border-radius:6px;padding:7px 10px;background:var(--paper);color:var(--ink);font:inherit;font-size:var(--fs-sm);white-space:nowrap;cursor:pointer}
 .status-tabs button:not(:disabled):hover,.workspace-tab:not(:disabled):hover{background:var(--hover-surface)}
 .status-tabs button.active,.workspace-tab[aria-selected="true"]{background:var(--green);color:var(--primary-ink);font-weight:700}
 .list-filters{display:flex;align-items:center;gap:8px;margin:0;padding:0}
@@ -1245,27 +1238,6 @@ body.has-background{background-color:var(--canvas);background-image:linear-gradi
 .checkbox-list label{display:flex;align-items:center;gap:8px;padding:8px;background:var(--canvas);border-radius:6px}
 .checkbox-list input{width:auto}
 
-/* Flow import category assignment dialog keeps its action row outside the scroll area. */
-.transfer-category-modal{display:flex;flex-direction:column;overflow:hidden;max-height:88vh;}
-.transfer-category-modal .modal-head{flex:0 0 auto;gap:16px;margin-bottom:12px}
-.transfer-category-modal .modal-head>div{min-width:0}
-.transfer-category-modal .modal-head p{margin:5px 0 0}
-.transfer-category-items{flex:0 1 auto;min-height:0;max-height:min(65vh,610px);overflow-y:auto;overscroll-behavior:contain;padding:2px 8px 8px 2px;display:grid;gap:9px}
-.transfer-category-item{border:1px solid var(--line);border-radius:10px;background:var(--paper);padding:10px 12px;scroll-margin:12px}
-.transfer-category-item.is-missing{border:2px solid var(--red);background:color-mix(in srgb,var(--red) 7%,var(--paper))}
-.transfer-category-item.is-unavailable{border-color:var(--red)}
-.transfer-category-item-head{display:flex;justify-content:space-between;gap:10px;margin-bottom:7px}
-.transfer-category-item-head span{font-size:var(--fs-xs);color:var(--muted)}
-.transfer-category-item dl{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px 12px;margin:0 0 8px}
-.transfer-category-item dl>div{min-width:0}
-.transfer-category-item dt{font-size:var(--fs-xs);color:var(--muted)}
-.transfer-category-item dd{margin:1px 0 0;font-weight:600;overflow-wrap:anywhere}
-.transfer-category-item .field{margin:0}
-.transfer-category-item .field>label{margin-bottom:4px}
-.transfer-category-message{flex:0 0 auto;min-height:0;color:var(--red);font-weight:700;padding:0 2px}
-.transfer-category-message:not(:empty){padding-top:8px}
-.transfer-category-actions{flex:0 0 auto;display:flex;justify-content:flex-end;gap:10px;padding-top:12px;margin-top:10px;border-top:1px solid var(--line);background:var(--paper)}
-.transfer-category-callout{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
 .import-entry-panel{display:flex;align-items:center;gap:12px;flex-wrap:wrap}.import-entry-panel>div{flex:1 1 420px;min-width:0}.import-entry-panel h2{margin:0 0 6px}.import-entry-panel p{margin:0;color:var(--muted)}
 .import-wizard-back{z-index:var(--z-wizard)}
 .import-wizard-modal{display:flex;flex-direction:column;overflow:hidden;max-height:90vh;padding:0}
@@ -1283,7 +1255,6 @@ body.has-background{background-color:var(--canvas);background-image:linear-gradi
 .export-note{margin-top:18px}
 .export-submit{margin-top:16px}
 .import-preview-body .table-component{max-width:100%;overflow:hidden}.import-preview-body .table-wrap{max-height:50vh;overflow:auto;overscroll-behavior:contain}.import-preview-summary{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px;padding:9px 11px;border-radius:8px;background:var(--soft-surface);color:var(--ink);overflow-wrap:anywhere}.import-preview-body>label{display:grid;gap:6px;max-width:600px;margin:10px 0 14px;font-weight:700}.import-preview-body .note{margin:10px 0}.import-category-warning{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
-.transfer-category-back{z-index:var(--z-transfer-confirm)}
 
 .email-recipient-option{display:flex;align-items:flex-start;gap:10px;padding:12px;border:1px solid var(--line);border-radius:9px;background:var(--paper);color:var(--ink);cursor:pointer}
 .email-recipient-option input{margin-top:3px;flex:0 0 auto}
@@ -1350,11 +1321,9 @@ body.overlay-open{position:fixed;left:0;right:0;width:100%;overflow:hidden;overs
 
 .visually-hidden{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important;border:0!important}
 
-/* Main list pages grow with their rows. Keep only horizontal table scrolling;
-   the document owns vertical scrolling so rows retain their natural height. */
-body.table-workspace-page #content .table-wrap{scroll-margin-top:88px;max-height:none;overflow-x:auto;overflow-y:visible;overscroll-behavior-x:contain;overscroll-behavior-y:auto;scrollbar-gutter:auto}
-body.table-workspace-page #content .table-wrap .table thead th:not(.select-col):not(.lock-col):not(.action-col){position:static}
-body.table-workspace-page #content .table-wrap .table thead th:is(.select-col,.lock-col,.action-col){top:auto}
+/* Standard list tables keep both scrollbars inside the visible table area. */
+body.table-workspace-page #content .table-component[data-table-mode="standard"]:not([data-scroll-table="1"]) .table-wrap{scroll-margin-top:88px;max-height:max(320px,calc(100vh - 280px));overflow:auto;overscroll-behavior:contain;scrollbar-gutter:stable}
+body.table-workspace-page #content .table-component[data-table-mode="standard"]:not([data-scroll-table="1"]) .table thead th{position:sticky;top:0;background:var(--table-head)}
 
 .system-guard{position:fixed;inset:0;z-index:var(--z-system-guard);display:grid;place-items:center;padding:24px;background:var(--canvas,#f4f1ec);color:var(--ink,#1f2937)}
 .system-guard[hidden]{display:none!important}
@@ -1664,11 +1633,6 @@ body.table-workspace-page #content .table-wrap .table thead th:is(.select-col,.l
     padding-right:6px;
   }
 
-  .email-recipient-panel .table td.action-col .smallbtn {
-    padding:5px 6px;
-    font-size:var(--fs-xs);
-  }
-
   .email-log-panel table {
     table-layout:fixed;
   }
@@ -1749,22 +1713,6 @@ body.table-workspace-page #content .table-wrap .table thead th:is(.select-col,.l
 
   .import-wizard-actions button {
     flex:1 1 auto;
-  }
-
-  .transfer-category-modal {
-    padding:16px;
-  }
-
-  .transfer-category-item dl {
-    grid-template-columns:1fr 1fr;
-  }
-
-  .transfer-category-item dl>div:last-child {
-    grid-column:1/-1;
-  }
-
-  .transfer-category-actions {
-    position:static;
   }
 
   .email-flow-backdrop {

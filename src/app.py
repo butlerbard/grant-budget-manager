@@ -97,10 +97,10 @@ def initialize():
           budget_attribute_id INTEGER REFERENCES budget_attributes(id) ON DELETE RESTRICT,
           UNIQUE(project_id,funding_source_id,unit_id,budget_subject_id,budget_attribute_id));
         CREATE TABLE IF NOT EXISTS reimbursement_batches(
-          id INTEGER PRIMARY KEY, project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+          id INTEGER PRIMARY KEY AUTOINCREMENT, project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
           submitted_date TEXT DEFAULT '', description TEXT DEFAULT '', created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);
         CREATE TABLE IF NOT EXISTS expenses(
-          id INTEGER PRIMARY KEY, project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+          id INTEGER PRIMARY KEY AUTOINCREMENT, project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
           voucher_date TEXT DEFAULT '',
           batch_id INTEGER REFERENCES reimbursement_batches(id) ON DELETE SET NULL,
           owner TEXT NOT NULL, source TEXT NOT NULL, subject TEXT NOT NULL, category TEXT NOT NULL DEFAULT '',
@@ -215,6 +215,9 @@ def initialize():
         if not db.execute("SELECT 1 FROM app_settings WHERE key='table_alignments_reset_20261125'").fetchone():
             db.execute("INSERT INTO app_settings(key,value) VALUES('table_alignments','{}') ON CONFLICT(key) DO UPDATE SET value=excluded.value")
             db.execute("INSERT INTO app_settings(key,value) VALUES('table_alignments_reset_20261125','1')")
+        if not db.execute("SELECT 1 FROM app_settings WHERE key='empty_batches_cleanup_20261126'").fetchone():
+            db.execute("DELETE FROM reimbursement_batches WHERE NOT EXISTS(SELECT 1 FROM expenses WHERE expenses.batch_id=reimbursement_batches.id)")
+            db.execute("INSERT INTO app_settings(key,value) VALUES('empty_batches_cleanup_20261126','1')")
         install_row=db.execute("SELECT value FROM app_settings WHERE key='smtp_install_id'").fetchone()
         if not install_row:
             install_id=secrets.token_hex(16)
@@ -246,6 +249,7 @@ def initialize():
             cols={r[1] for r in db.execute(f"PRAGMA table_info({table})")}
             if column not in cols:
                 db.execute(f"ALTER TABLE {table} ADD COLUMN {column} TEXT NOT NULL DEFAULT ''")
+        _upgrade_non_reusable_ids(db)
         db.executescript("""
         DROP TRIGGER IF EXISTS expense_budget_item_id;
         DROP TRIGGER IF EXISTS expense_budget_item_id_update;
@@ -366,6 +370,49 @@ def initialize():
         """)
         db.execute("INSERT OR IGNORE INTO schema_meta(version) VALUES(2)")
         db.execute("INSERT OR IGNORE INTO schema_meta(version) VALUES(3)")
+
+
+def _upgrade_non_reusable_ids(db):
+    """Upgrade legacy ledger IDs without losing rows or delete-log history."""
+    definitions={
+        'reimbursement_batches': "id INTEGER PRIMARY KEY AUTOINCREMENT, project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE, submitted_date TEXT DEFAULT '', description TEXT DEFAULT '', created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP",
+        'expenses': "id INTEGER PRIMARY KEY AUTOINCREMENT, project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE, voucher_date TEXT DEFAULT '', batch_id INTEGER REFERENCES reimbursement_batches(id) ON DELETE SET NULL, owner TEXT NOT NULL, source TEXT NOT NULL, subject TEXT NOT NULL, category TEXT NOT NULL DEFAULT '', amount REAL NOT NULL CHECK(amount >= 0), note TEXT DEFAULT '', voided INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, budget_item_id INTEGER REFERENCES budget_items(id) ON DELETE RESTRICT",
+    }
+    needs=[]
+    for table in ('reimbursement_batches','expenses'):
+        row=db.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name=?",(table,)).fetchone()
+        if row and 'AUTOINCREMENT' not in (row['sql'] or '').upper(): needs.append(table)
+    if not needs: return
+    high={
+        'reimbursement_batches': max([db.execute('SELECT COALESCE(MAX(id),0) FROM reimbursement_batches').fetchone()[0],db.execute('SELECT COALESCE(MAX(batch_id),0) FROM expense_delete_log').fetchone()[0]]),
+        'expenses': max([db.execute('SELECT COALESCE(MAX(id),0) FROM expenses').fetchone()[0],db.execute('SELECT COALESCE(MAX(original_expense_id),0) FROM expense_delete_log').fetchone()[0]]),
+    }
+    db.commit()
+    db.execute('PRAGMA foreign_keys=OFF')
+    try:
+        db.execute('BEGIN IMMEDIATE')
+        # Triggers attached to expenses reference reimbursement_batches.
+        # Drop them before replacing the parent table; initialize() recreates
+        # them after the migration has completed.
+        for trigger in db.execute("SELECT name FROM sqlite_master WHERE type='trigger' AND tbl_name IN ('reimbursement_batches','expenses')").fetchall():
+            db.execute(f'DROP TRIGGER "{trigger[0].replace(chr(34), chr(34)*2)}"')
+        for table in needs:
+            cols=[r['name'] for r in db.execute(f'PRAGMA table_info({table})')]
+            db.execute(f'CREATE TABLE {table}_new ({definitions[table]})')
+            names=','.join('"'+c+'"' for c in cols)
+            db.execute(f'INSERT INTO {table}_new ({names}) SELECT {names} FROM {table}')
+            db.execute(f'DROP TABLE {table}')
+            db.execute(f'ALTER TABLE {table}_new RENAME TO {table}')
+            db.execute('DELETE FROM sqlite_sequence WHERE name=?',(table,))
+            db.execute('INSERT INTO sqlite_sequence(name,seq) VALUES(?,?)',(table,high[table]))
+        violations=list(db.execute('PRAGMA foreign_key_check'))
+        if violations: raise RuntimeError(f'資料表編號升級後外鍵檢查失敗：{[tuple(r) for r in violations[:5]]}')
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.execute('PRAGMA foreign_keys=ON')
 
 
 def fnum(x):
@@ -795,7 +842,7 @@ def deletion_impact(db, project_id, entity, ids):
         row=dict(raw)
         expense_sig=(row.get('source'),row.get('owner'),row.get('subject'),row.get('category',''))
         if row.get('budget_item_id') in budget_ids or expense_sig in signatures or (entity=='option' and any(option_match(row,o['kind'],o['value']) for o in options)):
-            row['status_label']='作廢' if row.get('voided') else ('待核銷' if not row.get('submitted_date') else '已核銷')
+            row['status_label']='作廢' if row.get('voided') else ('待核銷' if is_pending_expense(row) else '已核銷')
             expenses.append(row)
 
     transfers=[]
@@ -886,6 +933,25 @@ def delete_with_impact(db, project_id, entity, ids):
     validate_ledger_caps(db,project_id)
     validate_reserved_funding(db,project_id)
     return impact
+
+
+def is_pending_expense(row):
+    submitted=str(row.get('submitted_date') or '')
+    voucher=str(row.get('voucher_date') or '')
+    valid=lambda value: bool(re.fullmatch(r'\d{4}-\d{2}-\d{2}',value))
+    return not row.get('voided') and (not valid(submitted) or not valid(voucher) or submitted>date.today().isoformat())
+
+
+def strict_positive_ids(value, label):
+    if not isinstance(value,list): raise ValueError(f'{label}格式不正確')
+    result=[]
+    for item in value:
+        if isinstance(item,bool) or not (isinstance(item,int) or isinstance(item,str) and re.fullmatch(r'[0-9]+',item)):
+            raise ValueError(f'{label}格式不正確')
+        number=int(item)
+        if number<=0: raise ValueError(f'{label}格式不正確')
+        if number not in result: result.append(number)
+    return result
 
 
 def apply_action(a):
@@ -1089,19 +1155,18 @@ def apply_action(a):
             db.execute("INSERT INTO app_settings(key,value) VALUES('table_alignments',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",(json.dumps(alignments,ensure_ascii=False),));return {'ok':True}
         if op=='batch_save':
             v=a.get('data',{});pid=int(v['project_id']);project=require_project(db,pid);batch_id=int(v['id']) if v.get('id') else None
+            if not batch_id: raise ValueError('新增核銷批次請由新增核銷明細流程建立')
             submitted=parse_date(v.get('submitted_date'),'登錄日期')
             if submitted:validate_expense_dates(project,submitted,None)
             if batch_id:
                 old=db.execute("SELECT id FROM reimbursement_batches WHERE id=? AND project_id=?",(batch_id,pid)).fetchone()
                 if not old:raise ValueError('找不到核銷批次')
-                for row in db.execute("SELECT id,voucher_date FROM expenses WHERE batch_id=?",(batch_id,)):
+                for row in db.execute("SELECT id,voucher_date FROM expenses WHERE batch_id=? AND voided=0",(batch_id,)):
                     validate_expense_dates(project,submitted,parse_date(row['voucher_date'],'憑證日期'),f'核銷項目 #{row["id"]}')
                 db.execute("UPDATE reimbursement_batches SET submitted_date=?,description=? WHERE id=?",(submitted,v.get('description','').strip(),batch_id))
-            else:
-                cur=db.execute("INSERT INTO reimbursement_batches(project_id,submitted_date,description) VALUES(?,?,?)",(pid,submitted,v.get('description','').strip()));batch_id=cur.lastrowid
             return {'ok':True,'id':batch_id}
         if op=='expense_bulk_delete':
-            pid=int(a['project_id']);require_project(db,pid);ids=list(dict.fromkeys(int(x) for x in a.get('ids',[])))
+            pid=int(a['project_id']);require_project(db,pid);ids=strict_positive_ids(a.get('ids',[]),'核銷 ID 清單')
             if ids:
                 marks=','.join('?' for _ in ids)
                 rows=list(db.execute(f'''SELECT e.*,b.description batch_description,COALESCE(b.submitted_date,'') submitted_date
@@ -1115,6 +1180,27 @@ def apply_action(a):
                 db.execute(f"DELETE FROM expenses WHERE project_id=? AND id IN ({marks})",[pid,*ids])
                 db.execute("DELETE FROM reimbursement_batches WHERE project_id=? AND NOT EXISTS(SELECT 1 FROM expenses WHERE expenses.batch_id=reimbursement_batches.id)",(pid,))
             return {'ok':True,'count':len(ids)}
+        if op=='batch_bulk_delete':
+            pid=int(a['project_id']);require_project(db,pid);ids=strict_positive_ids(a.get('ids',[]),'批次 ID 清單')
+            if not ids:return {'ok':True,'count':0,'expense_count':0}
+            marks=','.join('?' for _ in ids)
+            batches=list(db.execute(f'SELECT id FROM reimbursement_batches WHERE project_id=? AND id IN ({marks})',[pid,*ids]))
+            if len(batches)!=len(ids):raise ValueError('部分核銷批次已不存在或不屬於目前專案，未執行刪除')
+            expected=a.get('expected_expense_ids')
+            if not isinstance(expected,dict): raise ValueError('批次內容已變更，請重新整理後再確認')
+            actual={str(batch_id):[r['id'] for r in db.execute(f'SELECT id FROM expenses WHERE project_id=? AND batch_id=? ORDER BY id',(pid,batch_id))] for batch_id in ids}
+            normalized={str(k):strict_positive_ids(v,'明細 ID 清單') for k,v in expected.items()}
+            if normalized!=actual: raise ValueError('批次內容已變更，請重新整理後再確認')
+            rows=list(db.execute(f'''SELECT e.*,b.description batch_description,COALESCE(b.submitted_date,'') submitted_date
+                FROM expenses e JOIN reimbursement_batches b ON b.id=e.batch_id
+                WHERE e.project_id=? AND e.batch_id IN ({marks})''',[pid,*ids]))
+            for row in rows:
+                payees=[dict(x) for x in db.execute('SELECT name,amount FROM payees WHERE expense_id=? ORDER BY id',(row['id'],))]
+                db.execute('''INSERT INTO expense_delete_log(project_id,original_expense_id,batch_id,batch_description,submitted_date,voucher_date,source,owner,category,subject,amount,payees_json,note,voided)
+                    VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)''',(pid,row['id'],row['batch_id'],row['batch_description'] or '',row['submitted_date'] or '',row['voucher_date'] or '',row['source'],row['owner'],row['category'],row['subject'],round_amount(row['amount']),json.dumps(payees,ensure_ascii=False),row['note'] or '',row['voided']))
+            db.execute(f'DELETE FROM expenses WHERE project_id=? AND batch_id IN ({marks})',[pid,*ids])
+            db.execute(f'DELETE FROM reimbursement_batches WHERE project_id=? AND id IN ({marks})',[pid,*ids])
+            return {'ok':True,'count':len(ids),'expense_count':len(rows)}
         if op=='expense_delete_log':
             pid=int(a['project_id']);require_project(db,pid)
             return {'ok':True,'rows':[{**dict(row),'payees':json.loads(row['payees_json'])} for row in db.execute('SELECT * FROM expense_delete_log WHERE project_id=? ORDER BY deleted_at DESC,id DESC',(pid,))]}
@@ -1167,10 +1253,17 @@ def apply_action(a):
             old=None
             if v.get('id'): old=db.execute("SELECT amount,voided,owner,source,category,batch_id,budget_item_id FROM expenses WHERE id=? AND project_id=?",(int(v['id']),pid)).fetchone()
             if v.get('id') and not old:raise ValueError('此核銷紀錄已不存在或不屬於目前專案')
+            new_batch=v.get('new_batch')
+            if new_batch is not None and (not isinstance(new_batch,dict) or v.get('batch_id') or old):raise ValueError('新批次資料不可與既有批次或核銷項目編輯一起提交')
             batch_id=int(v.get('batch_id') or (old['batch_id'] if old else 0) or 0) or None
+            if not old and not batch_id and new_batch is None: raise ValueError('新增核銷明細必須指定批次')
+            if new_batch is not None:
+                submitted=parse_date(new_batch.get('submitted_date'),'登錄日期')
+                db.execute('INSERT INTO reimbursement_batches(project_id,submitted_date,description) VALUES(?,?,?)',(pid,submitted,str(new_batch.get('description') or '').strip()))
+                batch_id=db.execute('SELECT last_insert_rowid()').fetchone()[0]
             if batch_id:
                 batch=db.execute("SELECT submitted_date FROM reimbursement_batches WHERE id=? AND project_id=?",(batch_id,pid)).fetchone()
-                if not batch:raise ValueError('找不到所屬核銷批次')
+                if not batch:raise ValueError('找不到所屬核銷批次；此批次可能已被刪除，請關閉表單後重新建立批次')
                 effective_date=parse_date(batch['submitted_date'],'登錄日期')
             else:
                 effective_date=None
@@ -1208,9 +1301,11 @@ def apply_action(a):
             else:
                 cur=db.execute("INSERT INTO expenses(project_id,batch_id,voucher_date,owner,source,subject,category,budget_item_id,amount,note) VALUES(?,?,?,?,?,?,?,?,?,?)",(pid,batch_id,voucher,v['owner'],v['source'],v['subject'],v['category'],item['id'],total,v.get('note',''))); eid=cur.lastrowid
             if rows:db.executemany("INSERT INTO payees(expense_id,name,amount) VALUES(?,?,?)",[(eid,x['name'],x['amount']) for x in rows])
+            if old and old['batch_id'] and old['batch_id']!=batch_id:
+                db.execute('DELETE FROM reimbursement_batches WHERE id=? AND project_id=? AND NOT EXISTS(SELECT 1 FROM expenses WHERE batch_id=?)',(old['batch_id'],pid,old['batch_id']))
             ensure_project_option(db,pid,'owner',v['owner'])
             ensure_project_option(db,pid,'subject',v['subject'])
-            return {'ok':True}
+            return {'ok':True,'id':eid,'batch_id':batch_id}
         if op=='transfer_save':
             v=a['data'];pid=int(v['project_id']);project=require_project(db,pid);status=str(v.get('status') or '')
             if status not in ('planned','executed'):raise ValueError('請選擇流用狀態')
@@ -1845,7 +1940,7 @@ def build_export_sheets(data, project_id, selected_owners, include_overall):
     def add(name,headers,rows):result.append((name,headers,rows))
     def payee_names(x):return '；'.join(z['name'] for z in data['payees'].get(str(x['id']),[]))
     def payee_amounts(x):return '；'.join(str(round_amount(z['amount'])) for z in data['payees'].get(str(x['id']),[]))
-    def expense_state(x):return '作廢' if x['voided'] else ('待核銷' if not x.get('submitted_date') else '已核銷')
+    def expense_state(x):return '作廢' if x['voided'] else ('待核銷' if is_pending_expense(x) else '已核銷')
     def expense_sort_key(x):
         state=expense_state(x);order=0 if state=='待核銷' else (2 if state=='作廢' else 1)
         return (order,x.get('submitted_date') or '9999-12-31',x.get('id',0))
@@ -1859,7 +1954,7 @@ def build_export_sheets(data, project_id, selected_owners, include_overall):
         for x in expenses:
             if x['voided']:continue
             k=(x['source'],x.get('category','') or '未分類',x['subject']);g=grouped.setdefault(k,{'initial':0,'incoming':0,'outgoing':0,'budget':0,'confirmed':0,'pending':0,'reserved':0})
-            g['confirmed' if x.get('submitted_date') else 'pending']+=round_amount(x['amount'])
+            g['pending' if is_pending_expense(x) else 'confirmed']+=round_amount(x['amount'])
         overall_rows=[[src,category,subject,g['initial'],g['incoming'],g['outgoing'],g['budget'],g['confirmed'],g['pending'],g['budget']-g['confirmed']-g['pending'],g['budget']-g['confirmed']-g['pending']-g['reserved'],execution_percent(g['confirmed']+g['pending'],g['budget'])] for (src,category,subject),g in sorted(grouped.items())]
         sums={k:sum(g[k] for g in grouped.values()) for k in ('initial','incoming','outgoing','budget','confirmed','pending','reserved')}
         overall_rows.append(['專案合計','','',sums['initial'],sums['incoming'],sums['outgoing'],sums['budget'],sums['confirmed'],sums['pending'],sums['budget']-sums['confirmed']-sums['pending'],sums['budget']-sums['confirmed']-sums['pending']-sums['reserved'],execution_percent(sums['confirmed']+sums['pending'],round_amount(project['total_budget']))])
@@ -1878,7 +1973,7 @@ def build_export_sheets(data, project_id, selected_owners, include_overall):
             if x['voided'] or x['owner']!=owner:continue
             key=(x['source'],x.get('category','') or '未分類',x['subject'])
             g=owner_group.setdefault(key,{'budget':0,'incoming':0,'outgoing':0,'confirmed':0,'pending':0,'reserved':0})
-            g['confirmed' if x.get('submitted_date') else 'pending']+=round_amount(x['amount'])
+            g['pending' if is_pending_expense(x) else 'confirmed']+=round_amount(x['amount'])
         owner_rows=[[source,category,subject,g['budget'],g['incoming'],g['outgoing'],g['confirmed'],g['pending'],g['budget']-g['confirmed']-g['pending'],g['budget']-g['confirmed']-g['pending']-g['reserved'],execution_percent(g['confirmed']+g['pending'],g['budget'])] for (source,category,subject),g in sorted(owner_group.items())]
         owner_sums={k:sum(g[k] for g in owner_group.values()) for k in ('budget','incoming','outgoing','confirmed','pending','reserved')}
         owner_rows.append(['單位合計','','',owner_sums['budget'],owner_sums['incoming'],owner_sums['outgoing'],owner_sums['confirmed'],owner_sums['pending'],owner_sums['budget']-owner_sums['confirmed']-owner_sums['pending'],owner_sums['budget']-owner_sums['confirmed']-owner_sums['pending']-owner_sums['reserved'],execution_percent(owner_sums['confirmed']+owner_sums['pending'],owner_sums['budget'])])
@@ -1987,7 +2082,7 @@ def email_report_data(project_id,data=None):
         for x in ue:
             if x['voided']:continue
             k=(x['source'],x['subject']);g=grouped.setdefault(k,{'budget':0,'confirmed':0,'pending':0,'balance':0,'available':0})
-            if x.get('submitted_date'):g['confirmed']+=round_amount(x['amount'])
+            if not is_pending_expense(x):g['confirmed']+=round_amount(x['amount'])
             else:g['pending']+=round_amount(x['amount'])
         summary=[]
         for (source,subject),g in sorted(grouped.items()):
@@ -1997,7 +2092,7 @@ def email_report_data(project_id,data=None):
         confirmed=sum(x['confirmed'] for x in summary);pending=sum(x['pending'] for x in summary);budget=sum(x['budget'] for x in summary)
         details=[]
         for x in ue:
-            batch=batches.get(x.get('batch_id')) or {};state='作廢' if x['voided'] else ('待核銷' if not x.get('submitted_date') else '已核銷')
+            batch=batches.get(x.get('batch_id')) or {};state='作廢' if x['voided'] else ('待核銷' if is_pending_expense(x) else '已核銷')
             details.append({'id':x['id'],'submitted_date':x.get('submitted_date') or '', 'voucher_date':x.get('voucher_date') or '', 'state':state,'source':x['source'],'subject':x['subject'],'amount':round_amount(x['amount']),'batch_description':batch.get('description') or '', 'note':x.get('note') or '', 'payees':'；'.join(z['name'] for z in data['payees'].get(str(x['id']),[])), 'payee_amounts':'；'.join(str(round_amount(z['amount'])) for z in data['payees'].get(str(x['id']),[]))})
         details.sort(key=lambda x:(0 if x['state']=='待核銷' else (2 if x['state']=='作廢' else 1),x['submitted_date'] or '9999-12-31',x['id']))
         unit_reserved=sum(round_amount(x.get('reserved_out') or 0) for x in ub)
@@ -2297,7 +2392,7 @@ class Handler(BaseHTTPRequestHandler):
                 for p in projects:
                     denominator=round_amount(p.get('total_budget') or 0)
                     related=[x for x in data['expenses'] if x['project_id']==p['id'] and not x['voided']]
-                    confirmed=sum(round_amount(x['amount']) for x in related if x.get('submitted_date'))
+                    confirmed=sum(round_amount(x['amount']) for x in related if not is_pending_expense(x))
                     forecast=sum(round_amount(x['amount']) for x in related)
                     real_rate=execution_percent(confirmed,denominator);forecast_rate=execution_percent(forecast,denominator)
                     rows.append([p.get('name',''),p.get('code',''),p.get('unit',''),(p.get('start_date') or '').replace('-','/'),(p.get('end_date') or '').replace('-','/'),denominator,real_rate,forecast_rate,p.get('contact',''),p.get('phone',''),p.get('email','')])
@@ -2482,7 +2577,7 @@ class Handler(BaseHTTPRequestHandler):
                                     missing_budget_item=not bool(matched)
                                 payees=import_payee_pairs(row.get('payee_names'),row.get('payee_amounts'),total,i)
                                 voucher=parse_date(row.get('voucher_date'),'憑證日期'); submitted=parse_date(row.get('submitted_date'),'登錄日期'); validate_expense_dates(project,submitted,voucher,f'{f["name"]} 第 {i} 列')
-                                if submitted and submitted>date.today().isoformat():warnings.append(f'{f["name"]} 第 {i} 列：此登錄日期晚於今天，請確認')
+                                if submitted and submitted>date.today().isoformat():warnings.append(f'{f["name"]} 第 {i} 列：此登錄日期晚於今天，該日之前此筆明細會列為待核銷')
                                 if missing_budget_item:
                                     source=str(row.get('source') or '').strip();owner=str(row.get('owner') or '').strip();subject=str(row.get('subject') or '').strip();category=str(row.get('category') or '').strip()
                                     warnings.append(f'{f["name"]} 第 {i} 列：找不到經費類別「{source}」、單位「{owner}」、預算科目「{subject}」、經費屬性「{category}」完全相符的預算明細。')

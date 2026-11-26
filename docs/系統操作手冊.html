@@ -49,7 +49,7 @@
 <tr><td>編列預算</td><td><span class="ui">預算明細</span> → <span class="ui">＋ 新增預算</span>，或用 <span class="ui">匯入預算明細</span></td><td><a href="#budget">預算明細</a></td></tr>
 <tr><td>查某個科目還剩多少錢</td><td><span class="ui">預算明細</span> 看「可用餘額」欄</td><td><a href="#budget">預算明細</a></td></tr>
 <tr><td>登錄一張發票或收據</td><td><span class="ui">核銷紀錄</span> → <span class="ui">＋ 新增核銷批次</span> → 填明細</td><td><a href="#expenses">核銷紀錄</a></td></tr>
-<tr><td>補填 <span class="st st-pending">待核銷</span> 的登錄日期</td><td>點該筆的批次說明 → <span class="ui">編輯批次</span> → 填登錄日期</td><td><a href="#expenses">核銷紀錄</a></td></tr>
+<tr><td>補填 <span class="st st-pending">待核銷</span> 的日期</td><td>到 <span class="ui">核銷紀錄</span> 補填缺少的登錄日期或憑證日期</td><td><a href="#expenses">核銷紀錄</a></td></tr>
 <tr><td>修改核銷的金額、單位或科目</td><td><span class="ui">核銷紀錄</span> 該列按 <span class="ui">編輯</span></td><td><a href="#expenses">核銷紀錄</a></td></tr>
 <tr><td>作廢一筆核銷</td><td><span class="ui">核銷紀錄</span> 勾選 → <span class="ui">作廢</span></td><td><a href="#expenses">核銷紀錄</a></td></tr>
 <tr><td>取消作廢</td><td><span class="ui">作廢</span> 分頁勾選 → <span class="ui">復原</span></td><td><a href="#expenses">核銷紀錄</a></td></tr>
@@ -136,7 +136,7 @@
 <thead><tr><th>狀態</th><th>怎麼判斷</th><th>會不會占用經費</th></tr></thead>
 <tbody>
 <tr><td><span class="st st-done">已核銷</span></td><td>已填登錄日期，且沒有作廢</td><td>會</td></tr>
-<tr><td><span class="st st-pending">待核銷</span></td><td>登錄日期還沒填，且沒有作廢</td><td><span class="key">會。</span>雖然還沒登錄，仍然先扣額度</td></tr>
+<tr><td><span class="st st-pending">待核銷</span></td><td>登錄日期或憑證日期任一未填、登錄日期晚於今天，且沒有作廢</td><td><span class="key">會。</span>雖然尚未完成核銷，仍然先扣額度</td></tr>
 <tr><td><span class="st st-void">作廢</span></td><td>已標記作廢</td><td>不會，只保留紀錄供查核</td></tr>
 </tbody></table></div>
 
@@ -283,15 +283,15 @@
 <p>核銷以「紙本批次」為單位。一個批次就是一次送出的核銷單，裡面可以有多筆明細。同一批次的明細共用<strong>登錄日期</strong>和<strong>批次說明</strong>。清單中每一列是一筆明細。</p>
 <h3>新增核銷</h3>
 <ol class="steps">
-<li><b>按 <span class="ui">＋ 新增核銷批次</span>，填寫「登錄日期」和「批次說明」後儲存</b><p>登錄日期還不知道可以先空著，這批明細就會是 <span class="st st-pending">待核銷</span>。</p></li>
-<li><b>填寫明細</b><p>儲存後會自動開啟明細表單。依序選擇「經費類別」「單位」「經費屬性」「預算科目」，再填「核銷金額」。選好單位後，表單會顯示<strong>可核銷上限</strong>，金額不要超過它。</p></li>
+<li><b>按 <span class="ui">＋ 新增核銷批次</span>，填寫「登錄日期」和「批次說明」後儲存</b><p>第一筆明細儲存前不會建立批次；任一日期留白時，該明細為 <span class="st st-pending">待核銷</span>。</p></li>
+<li><b>填寫明細</b><p>填寫批次後會自動開啟明細表單。依序選擇「經費類別」「單位」「經費屬性」「預算科目」，再填「核銷金額」。選好單位後，表單會顯示<strong>可核銷上限</strong>，金額不要超過它。</p></li>
 <li><b>視需要填寫「憑證日期」「付款對象」「用途／備註」</b></li>
-<li><b>儲存後接著輸入下一筆</b><p>表單預設勾選「儲存資料後不關閉表單」，儲存後會清空欄位，可以接著輸入同一批次的下一筆。</p></li>
+<li><b>儲存後接著輸入下一筆</b><p>第一筆明細儲存成功後會留在明細表單並保留同一批次；欄位清空後可直接輸入下一筆。按 Esc 或「關閉表單」會開啟批次面板。從批次面板追加明細時也相同；編輯明細及其他表單儲存後仍會關閉。</p></li>
 </ol>
 <h3>補填登錄日期</h3>
 <ol class="steps">
 <li><b>在清單中點選該筆的批次說明（顯示為「#編號 說明」），開啟批次面板</b></li>
-<li><b>按 <span class="ui">編輯批次</span>，填入登錄日期後儲存</b><p>整批明細會一起變成 <span class="st st-done">已核銷</span>。</p></li>
+<li><b>按 <span class="ui">編輯批次</span>，填入登錄日期後儲存</b><p>有憑證日期的明細會變成 <span class="st st-done">已核銷</span>；憑證日期仍空白的明細維持 <span class="st st-pending">待核銷</span>。</p></li>
 </ol>
 <h3>在既有批次追加明細</h3>
 <p>開啟批次面板，按 <span class="ui">＋ 在此批次新增明細</span>。</p>
@@ -300,7 +300,7 @@
 <h3>填寫規則</h3>
 <ul>
 <li>日期須在專案執行期間內；憑證日期不可晚於登錄日期。</li>
-<li>登錄日期晚於今天時，會提示「此登錄日期晚於今天，請確認」，但仍可儲存。</li>
+<li>登錄日期晚於今天時，會提示「此登錄日期晚於今天，該日之前本批明細會列為待核銷」，但仍可儲存。</li>
 <li>金額須為整數元，可以是 0。</li>
 <li>付款對象可以不填。若填寫，每一位都要有分配金額，而且合計要等於核銷金額。名稱不可包含「;」或「；」。</li>
 </ul>
@@ -328,7 +328,7 @@
 <p>執行前會顯示筆數、金額合計及各狀態的筆數，確認視窗預設停在「取消」。</p>
 <h3>篩選與查看</h3>
 <ul>
-<li>分頁：<span class="ui">待核銷</span>（有資料時顯示警告圖示 ⚠️）、<span class="ui">已核銷</span>、<span class="ui">作廢</span>、<span class="ui">總覽</span>。</li>
+<li>分頁：<span class="ui">待核銷</span>（有資料時顯示警告圖示 ⚠️）、<span class="ui">已核銷</span>、<span class="ui">作廢</span>、<span class="ui">總覽</span>、<span class="ui">批次</span>。</li>
 <li>可依預算科目、單位篩選，或搜尋批次說明、單位、預算科目、備註。</li>
 </ul>
 </section>
@@ -481,7 +481,7 @@
 <li><strong>新增：</strong>在 <span class="ui">收件人清單</span> 按 <span class="ui">新增收件人</span>，填寫類型、姓名／稱呼、Email、所屬單位。收件人只屬於目前這個專案。</li>
 <li><strong>修改：</strong>在該列按 <span class="ui">編輯</span>。</li>
 <li><strong>刪除：</strong>勾選後按 <span class="ui">刪除</span>。</li>
-<li>清單中的 Email 會部分隱藏，按 <span class="ui">檢視</span> 可看完整內容。</li>
+<li>清單中的 Email 會部分隱藏，按遮罩的 Email 可看完整內容；操作欄的 <span class="ui">編輯</span> 可修改收件人。</li>
 </ul>
 <div class="pair">
 <div><h4>單位收件人</h4><p>固定只收到所屬單位的資料。所屬單位沒有預算明細時，寄送時不會列出這位收件人。</p></div>
@@ -527,7 +527,7 @@
 <h3>匯入核銷紀錄</h3>
 <ul>
 <li>必填：經費類別、單位、經費屬性、預算科目、核銷金額。四項選項都必須已經建立。</li>
-<li>選填：登錄日期、憑證日期、批次說明、付款對象、分配金額、備註。登錄日期空白的列會是 <span class="st st-pending">待核銷</span>。</li>
+<li>選填：登錄日期、憑證日期、批次說明、付款對象、分配金額、備註。登錄日期或憑證日期空白，或登錄日期晚於今天的列會是 <span class="st st-pending">待核銷</span>。</li>
 <li>找不到對應的預算明細時，預覽會列出，確認後建立 0 元明細。</li>
 <li>批次處理方式：
 <ul>
@@ -552,6 +552,7 @@
 <ul>
 <li><strong>欄位名稱：</strong>只接受範本上的欄位名稱。直接拿匯出的報表來匯入，通常會因欄位名稱不同而失敗。</li>
 <li><strong>疑似重複：</strong>核銷和流用會和既有紀錄及同一檔案的其他列比對。疑似重複時會標示出來，你確認後才能匯入。</li>
+<li><strong>列次：</strong>預覽表格的「列次」是檔案中的實際列號（標題是第 1 列，第一筆資料是第 2 列），和錯誤訊息、疑似重複標記裡的「第 N 列」相同，可以直接對照 Excel 找到該列。一次上傳多個檔案時，會顯示「檔名：列號」。</li>
 <li><strong>日期警告：</strong>登錄日期晚於今天時會提醒，但不會阻擋匯入。</li>
 <li><strong>額度：</strong>匯入後不能超過專案和各層的經費額度。流用還會檢查流出項目的可用餘額，以及兩邊的經費屬性是否相同。</li>
 </ul>
@@ -596,7 +597,7 @@
 <p>跨好幾個頁面的工作，依以下順序進行。</p>
 <h3>月底對帳</h3>
 <ol class="steps">
-<li><b>處理待核銷</b><p>到 <span class="ui">經費總覽</span> 的「待核銷」區塊，或 <span class="ui">核銷紀錄</span> 的 <span class="ui">待核銷</span> 分頁，補填已登錄批次的登錄日期。</p></li>
+<li><b>處理待核銷</b><p>到 <span class="ui">經費總覽</span> 的「待核銷」區塊，或 <span class="ui">核銷紀錄</span> 的 <span class="ui">待核銷</span> 分頁，補填缺少的登錄日期或憑證日期。</p></li>
 <li><b>檢查超支</b><p>到 <span class="ui">預算明細</span> 的 <span class="ui">超支</span> 分頁，確認有沒有超支的科目，需要時用經費流用調整。</p></li>
 <li><b>處理規劃中流用</b><p>到 <span class="ui">經費流用</span> 的 <span class="ui">規劃中</span> 分頁，已定案的轉為已流用，不再需要的刪除。</p></li>
 <li><b>產生報表</b><p>到 <span class="ui">匯出資料</span> 產生報表，或用 <span class="ui">Email 經費報告</span> 寄給各單位。</p></li>
@@ -605,7 +606,7 @@
 <h3>專案結案</h3>
 <p>系統沒有「結案」按鈕。執行迄日過後，專案會自動移到 <span class="ui">已完成</span> 分頁，資料仍然可以查看和修改。建議結案時：</p>
 <ol class="steps">
-<li><b>處理所有 <span class="st st-pending">待核銷</span></b><p>補填登錄日期，或作廢不會核銷的紀錄。</p></li>
+<li><b>處理所有 <span class="st st-pending">待核銷</span></b><p>補填缺少的登錄日期或憑證日期，或作廢不會核銷的紀錄。</p></li>
 <li><b>處理所有 <span class="st st-planned">規劃中</span> 流用</b><p>轉為已流用或刪除。</p></li>
 <li><b>視需要把所有流用「鎖定」，防止誤改</b></li>
 <li><b>到 <span class="ui">匯出資料</span> 匯出最終報表留存</b></li>
@@ -659,7 +660,7 @@
 <tbody>
 <tr><td><kbd>Ctrl</kbd> + <kbd>S</kbd></td><td>儲存表單。</td></tr>
 <tr><td><kbd>Esc</kbd> 或「關閉表單」</td><td>關閉表單；有未儲存的內容時，會先詢問。點擊表單外面不會關閉表單。</td></tr>
-<tr><td>「儲存資料後不關閉表單」</td><td>新增資料時預設勾選，按鈕顯示 <span class="ui">儲存並保持開啟</span>，儲存後清空欄位方便連續輸入。取消勾選後，按鈕變成 <span class="ui">儲存並關閉</span>。編輯既有資料時，儲存後不會清空。</td></tr>
+<tr><td>儲存表單</td><td>新增核銷明細儲存成功後會保留表單、清空欄位並保留批次，可直接連續新增；關閉表單後開啟批次面板。編輯核銷明細及其他表單儲存成功後會關閉；儲存失敗時保留已填資料。</td></tr>
 </tbody></table></div>
 <ul>
 <li>欄位會標示「必填」或「選填」。</li>
