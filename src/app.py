@@ -1458,6 +1458,65 @@ def apply_action(a):
                 db.execute("UPDATE transfers SET status='executed',from_budget_item_id=?,to_budget_item_id=? WHERE id=?",(source['id'],target['id'],row['id']))
             validate_ledger_caps(db,pid);validate_reserved_funding(db,pid)
             return {'ok':True,'count':len(ids)}
+        if op=='transfer_bulk_plan':
+            pid=int(a['project_id']);require_project(db,pid);ids=list(dict.fromkeys(int(x) for x in a.get('ids',[])))
+            if not ids:raise ValueError('請先勾選流用紀錄')
+            marks=','.join('?' for _ in ids);rows=list(db.execute(f"SELECT * FROM transfers WHERE project_id=? AND id IN ({marks})",[pid,*ids]))
+            by_id={int(x['id']):x for x in rows};blocked=[]
+            for tid in ids:
+                row=by_id.get(tid)
+                if not row:blocked.append({'id':tid,'reason':'紀錄不存在'});continue
+                reasons=[]
+                if row['locked']:reasons.append('已鎖定')
+                if row['status']!='executed':reasons.append('不是已流用')
+                if reasons:blocked.append({'id':tid,'reason':'、'.join(reasons)})
+            if blocked:return {'ok':True,'blocked':blocked}
+            before_items={item['id']:item for item in totals(db,pid)}
+            caps_before=ledger_cap_balances(db,pid)
+            db.execute('SAVEPOINT transfer_bulk_plan_check')
+            try:
+                db.execute(f"UPDATE transfers SET status='planned',to_budget_item_id=NULL WHERE project_id=? AND id IN ({marks})",[pid,*ids])
+                try:
+                    validate_ledger_caps(db,pid)
+                except ValueError as e:
+                    caps_after=ledger_cap_balances(db,pid)
+                    worsened={key for key,value in caps_after.items() if value<0 and value<caps_before.get(key,0)}
+                    involved=[]
+                    for row in rows:
+                        target_owner=('owner',row['to_owner']);target_combo=('combo',row['to_owner'],row['source'],row['to_category'])
+                        source_combo=('combo',row['from_owner'],row['source'],row['from_category'])
+                        if ((target_owner in worsened and row['to_owner']!=row['from_owner']) or
+                            (target_combo in worsened and target_combo!=source_combo)):
+                            involved.append(row['id'])
+                    db.execute('ROLLBACK TO transfer_bulk_plan_check');db.execute('RELEASE transfer_bulk_plan_check')
+                    reason=f'轉回規劃中會使流入端經費上限不足：{e}'
+                    return {'ok':True,'blocked':[{'id':tid,'reason':reason} for tid in involved] if involved else [{'id':None,'reason':reason}]}
+                try:
+                    validate_reserved_funding(db,pid)
+                except ValueError as e:
+                    after_items={item['id']:item for item in totals(db,pid)};involved=[]
+                    for row in rows:
+                        item_id=row['to_budget_item_id'];before=before_items.get(item_id);after=after_items.get(item_id)
+                        if before and after and max(0,before['reserved_out']-before['balance'])<max(0,after['reserved_out']-after['balance']):
+                            involved.append(row['id'])
+                    db.execute('ROLLBACK TO transfer_bulk_plan_check');db.execute('RELEASE transfer_bulk_plan_check')
+                    reason=f'轉回規劃中會占用流入明細上的其他規劃圈存：{e}'
+                    return {'ok':True,'blocked':[{'id':tid,'reason':reason} for tid in involved] if involved else [{'id':None,'reason':reason}]}
+                overdraws=[]
+                for item in totals(db,pid):
+                    before=before_items.get(item['id'])
+                    if before and item['balance']<before['balance'] and item['balance']<0:
+                        overdraws.append({'source':item['source'],'owner':item['owner'],'subject':item['subject'],'category':item['category'],'deficit':-item['balance'],'before_balance':before['balance'],'after_balance':item['balance']})
+                if overdraws and not a.get('confirm_overdraw'):
+                    db.execute('ROLLBACK TO transfer_bulk_plan_check');db.execute('RELEASE transfer_bulk_plan_check')
+                    return {'ok':True,'confirmation_required':True,'overdraws':overdraws}
+            except Exception:
+                db.execute('ROLLBACK TO transfer_bulk_plan_check');db.execute('RELEASE transfer_bulk_plan_check')
+                raise
+            db.execute('ROLLBACK TO transfer_bulk_plan_check');db.execute('RELEASE transfer_bulk_plan_check')
+            db.execute(f"UPDATE transfers SET status='planned',to_budget_item_id=NULL WHERE project_id=? AND id IN ({marks})",[pid,*ids])
+            validate_ledger_caps(db,pid);validate_reserved_funding(db,pid)
+            return {'ok':True,'count':len(ids)}
         if op=='transfer_bulk_delete':
             pid=int(a['project_id']);require_project(db,pid)
             ids=list(dict.fromkeys(int(x) for x in a.get('ids',[])))
@@ -1820,7 +1879,7 @@ def is_blank_import_row(row):
     return not any(has_content(value) for value in row.values())
 
 
-MONEY_EXPORT_HEADERS={'初始預算','流入','流出','流用後預算','核銷金額','分配金額','流用金額','已核銷','待核銷','帳面餘額','可用餘額','專案經費總額','變更前預算','變更後預算','增減','估算母數','逐筆加總保費','整組直接算','差額','逐筆保費'}
+MONEY_EXPORT_HEADERS={'初始預算','流入','流出','流用後預算','核銷金額','分配金額','流用金額','已核銷','待核銷','帳面餘額','對帳餘額','可用餘額','專案經費總額','變更前預算','變更後預算','增減','估算母數','逐筆加總保費','整組直接算','差額','逐筆保費'}
 
 def is_money_header(header):
     return str(header).strip() in MONEY_EXPORT_HEADERS
@@ -1855,7 +1914,7 @@ def make_xlsx_sheets(sheets):
         base=name;index=2
         while name in used:
             suffix=f'_{index}';name=base[:31-len(suffix)]+suffix;index+=1
-        used.add(name);all_rows=[headers]+rows;xml_rows=[];money_columns={i for i,h in enumerate(headers) if is_money_header(h)};state_col=headers.index('狀態') if '狀態' in headers else -1
+        used.add(name);all_rows=[headers]+rows;xml_rows=[];money_columns={i for i,h in enumerate(headers) if is_money_header(h)};state_col=headers.index('狀態') if '狀態' in headers else -1;allocation_col=headers.index('分配金額') if '分配金額' in headers else -1
         for ri,row in enumerate(all_rows,1):
             cells=[];pending_row=ri>1 and state_col>=0 and state_col<len(row) and str(row[state_col])=='待核銷'
             for ci,val in enumerate(row,1):
@@ -1866,7 +1925,8 @@ def make_xlsx_sheets(sheets):
                 else:
                     text=format_amount_list(val) if headers[ci-1]=='分配金額' and isinstance(val,str) else str(val if val is not None else '')
                     text=re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f\ufffe\uffff]','',text)
-                    style_attr=' s="5"' if pending_row and ci-1 in money_columns else (' s="4"' if pending_row else (' s="2"' if ci-1 in money_columns else ''))
+                    if ri>1 and ci-1==allocation_col:style_attr=' s="7"' if pending_row else ' s="6"'
+                    else:style_attr=' s="5"' if pending_row and ci-1 in money_columns else (' s="4"' if pending_row else (' s="2"' if ci-1 in money_columns else ''))
                     cells.append(f'<c r="{ref}"{style_attr} t="inlineStr"><is><t>{escape(text)}</t></is></c>')
             xml_rows.append(f'<row r="{ri}">{"".join(cells)}</row>')
         xml='<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>'+''.join(xml_rows)+'</sheetData></worksheet>'
@@ -1880,7 +1940,7 @@ def make_xlsx_sheets(sheets):
         z.writestr('_rels/.rels','''<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>''')
         z.writestr('xl/workbook.xml',f'<?xml version="1.0" encoding="UTF-8"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets>{sheets_xml}</sheets></workbook>')
         z.writestr('xl/_rels/workbook.xml.rels',f'<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">{rels}</Relationships>')
-        z.writestr('xl/styles.xml','''<?xml version="1.0" encoding="UTF-8"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><numFmts count="1"><numFmt numFmtId="164" formatCode="#,##0;-#,##0"/></numFmts><fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><b/><color rgb="FF8B0000"/><sz val="11"/><name val="Calibri"/></font></fonts><fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills><borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="6"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/><xf numFmtId="164" fontId="0" fillId="0" borderId="0" applyNumberFormat="1" applyAlignment="1"><alignment horizontal="right" vertical="center"/></xf><xf numFmtId="0" fontId="0" fillId="0" borderId="0" applyAlignment="1"><alignment horizontal="right" vertical="center"/></xf><xf numFmtId="164" fontId="1" fillId="0" borderId="0" applyNumberFormat="1" applyAlignment="1"><alignment horizontal="right" vertical="center"/></xf><xf numFmtId="0" fontId="1" fillId="0" borderId="0"/><xf numFmtId="0" fontId="1" fillId="0" borderId="0" applyAlignment="1"><alignment horizontal="right" vertical="center"/></xf></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>''')
+        z.writestr('xl/styles.xml','''<?xml version="1.0" encoding="UTF-8"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><numFmts count="1"><numFmt numFmtId="164" formatCode="#,##0;-#,##0"/></numFmts><fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><b/><color rgb="FF8B0000"/><sz val="11"/><name val="Calibri"/></font></fonts><fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills><borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="8"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/><xf numFmtId="164" fontId="0" fillId="0" borderId="0" applyNumberFormat="1" applyAlignment="1"><alignment horizontal="right" vertical="center"/></xf><xf numFmtId="0" fontId="0" fillId="0" borderId="0" applyAlignment="1"><alignment horizontal="right" vertical="center"/></xf><xf numFmtId="164" fontId="1" fillId="0" borderId="0" applyNumberFormat="1" applyAlignment="1"><alignment horizontal="right" vertical="center"/></xf><xf numFmtId="0" fontId="1" fillId="0" borderId="0"/><xf numFmtId="0" fontId="1" fillId="0" borderId="0" applyAlignment="1"><alignment horizontal="right" vertical="center"/></xf><xf numFmtId="49" fontId="0" fillId="0" borderId="0" applyNumberFormat="1" applyAlignment="1"><alignment horizontal="right" vertical="center"/></xf><xf numFmtId="49" fontId="1" fillId="0" borderId="0" applyNumberFormat="1" applyAlignment="1"><alignment horizontal="right" vertical="center"/></xf></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>''')
         for i,(_,xml) in enumerate(clean,1):z.writestr(f'xl/worksheets/sheet{i}.xml',xml)
     return mem.getvalue()
 
@@ -1930,7 +1990,9 @@ def estimate_report(data, project_id, sources=None, categories=None, owners=None
     return {'rate_percent':str(Decimal(basis)/100),'groups':result,'category_totals':[category_totals[name] for name in sorted(category_totals)],'total':total}
 
 
-def build_export_sheets(data, project_id, selected_owners, include_overall):
+def build_export_sheets(data, project_id, selected_owners, include_overall, report_type='general'):
+    if report_type not in ('general','reconciliation'):raise ValueError('不支援的報表類型')
+    reconciliation=report_type=='reconciliation'
     project=next((x for x in data['projects'] if x['id']==project_id),None)
     if not project:raise ValueError('找不到指定的專案，請重新選擇專案後匯出')
     budgets=[x for x in data['budgets'] if x['project_id']==project_id]
@@ -1955,12 +2017,25 @@ def build_export_sheets(data, project_id, selected_owners, include_overall):
             if x['voided']:continue
             k=(x['source'],x.get('category','') or '未分類',x['subject']);g=grouped.setdefault(k,{'initial':0,'incoming':0,'outgoing':0,'budget':0,'confirmed':0,'pending':0,'reserved':0})
             g['pending' if is_pending_expense(x) else 'confirmed']+=round_amount(x['amount'])
-        overall_rows=[[src,category,subject,g['initial'],g['incoming'],g['outgoing'],g['budget'],g['confirmed'],g['pending'],g['budget']-g['confirmed']-g['pending'],g['budget']-g['confirmed']-g['pending']-g['reserved'],execution_percent(g['confirmed']+g['pending'],g['budget'])] for (src,category,subject),g in sorted(grouped.items())]
+        if reconciliation:
+            overall_rows=[[src,category,subject,g['initial'],g['incoming'],g['outgoing'],g['budget'],g['confirmed'],g['budget']-g['confirmed'],execution_percent(g['confirmed'],g['budget'])] for (src,category,subject),g in sorted(grouped.items())]
+        else:
+            overall_rows=[[src,category,subject,g['initial'],g['incoming'],g['outgoing'],g['budget'],g['confirmed'],g['pending'],g['budget']-g['confirmed']-g['pending'],g['budget']-g['confirmed']-g['pending']-g['reserved'],execution_percent(g['confirmed']+g['pending'],g['budget'])] for (src,category,subject),g in sorted(grouped.items())]
         sums={k:sum(g[k] for g in grouped.values()) for k in ('initial','incoming','outgoing','budget','confirmed','pending','reserved')}
-        overall_rows.append(['專案合計','','',sums['initial'],sums['incoming'],sums['outgoing'],sums['budget'],sums['confirmed'],sums['pending'],sums['budget']-sums['confirmed']-sums['pending'],sums['budget']-sums['confirmed']-sums['pending']-sums['reserved'],execution_percent(sums['confirmed']+sums['pending'],round_amount(project['total_budget']))])
-        add('專案經費總表',['經費類別','經費屬性','預算科目','初始預算','流入','流出','流用後預算','已核銷','待核銷','帳面餘額','可用餘額','執行率（含待核銷）（%）'],overall_rows)
-        add('核銷彙總',['狀態','登錄日期','憑證日期','經費類別','單位','經費屬性','預算科目','核銷金額','付款對象','分配金額','備註'],[[expense_state(x),date_text(x.get('submitted_date')),date_text(x.get('voucher_date')),x['source'],x['owner'],x.get('category',''),x['subject'],round_amount(x['amount']),payee_names(x),payee_amounts(x),x.get('note','')] for x in sorted(expenses,key=expense_sort_key)])
-        add('流用紀錄',*transfer_record_sheet(transfers))
+        if reconciliation:
+            overall_rows.append(['專案合計','','',sums['initial'],sums['incoming'],sums['outgoing'],sums['budget'],sums['confirmed'],sums['budget']-sums['confirmed'],execution_percent(sums['confirmed'],round_amount(project['total_budget']))])
+            add('專案經費總表',['經費類別','經費屬性','預算科目','初始預算','流入','流出','流用後預算','已核銷','對帳餘額','執行率（%）'],overall_rows)
+        else:
+            overall_rows.append(['專案合計','','',sums['initial'],sums['incoming'],sums['outgoing'],sums['budget'],sums['confirmed'],sums['pending'],sums['budget']-sums['confirmed']-sums['pending'],sums['budget']-sums['confirmed']-sums['pending']-sums['reserved'],execution_percent(sums['confirmed']+sums['pending'],round_amount(project['total_budget']))])
+            add('專案經費總表',['經費類別','經費屬性','預算科目','初始預算','流入','流出','流用後預算','已核銷','待核銷','帳面餘額','可用餘額','執行率（含待核銷）（%）'],overall_rows)
+        report_expenses=sorted((x for x in expenses if not reconciliation or (not x['voided'] and not is_pending_expense(x))),key=expense_sort_key)
+        expense_headers=['登錄日期','憑證日期','經費類別','單位','經費屬性','預算科目','核銷金額','付款對象','分配金額','備註'] if reconciliation else ['狀態','登錄日期','憑證日期','經費類別','單位','經費屬性','預算科目','核銷金額','付款對象','分配金額','備註']
+        expense_rows=[[date_text(x.get('submitted_date')),date_text(x.get('voucher_date')),x['source'],x['owner'],x.get('category',''),x['subject'],round_amount(x['amount']),payee_names(x),payee_amounts(x),x.get('note','')] if reconciliation else [expense_state(x),date_text(x.get('submitted_date')),date_text(x.get('voucher_date')),x['source'],x['owner'],x.get('category',''),x['subject'],round_amount(x['amount']),payee_names(x),payee_amounts(x),x.get('note','')] for x in report_expenses]
+        add('核銷彙總',expense_headers,expense_rows)
+        transfer_rows=[x for x in transfers if not reconciliation or x.get('status')=='executed']
+        transfer_headers,transfer_rows=transfer_record_sheet(transfer_rows)
+        if reconciliation:transfer_headers=transfer_headers[:-1];transfer_rows=[row[:-1] for row in transfer_rows]
+        add('流用紀錄',transfer_headers,transfer_rows)
     for owner in selected_owners:
         owner_b=[x for x in budgets if x['owner']==owner]
         owner_group={}
@@ -1974,16 +2049,29 @@ def build_export_sheets(data, project_id, selected_owners, include_overall):
             key=(x['source'],x.get('category','') or '未分類',x['subject'])
             g=owner_group.setdefault(key,{'budget':0,'incoming':0,'outgoing':0,'confirmed':0,'pending':0,'reserved':0})
             g['pending' if is_pending_expense(x) else 'confirmed']+=round_amount(x['amount'])
-        owner_rows=[[source,category,subject,g['budget'],g['incoming'],g['outgoing'],g['confirmed'],g['pending'],g['budget']-g['confirmed']-g['pending'],g['budget']-g['confirmed']-g['pending']-g['reserved'],execution_percent(g['confirmed']+g['pending'],g['budget'])] for (source,category,subject),g in sorted(owner_group.items())]
+        if reconciliation:
+            owner_rows=[[source,category,subject,g['budget'],g['incoming'],g['outgoing'],g['confirmed'],g['budget']-g['confirmed'],execution_percent(g['confirmed'],g['budget'])] for (source,category,subject),g in sorted(owner_group.items())]
+        else:
+            owner_rows=[[source,category,subject,g['budget'],g['incoming'],g['outgoing'],g['confirmed'],g['pending'],g['budget']-g['confirmed']-g['pending'],g['budget']-g['confirmed']-g['pending']-g['reserved'],execution_percent(g['confirmed']+g['pending'],g['budget'])] for (source,category,subject),g in sorted(owner_group.items())]
         owner_sums={k:sum(g[k] for g in owner_group.values()) for k in ('budget','incoming','outgoing','confirmed','pending','reserved')}
-        owner_rows.append(['單位合計','','',owner_sums['budget'],owner_sums['incoming'],owner_sums['outgoing'],owner_sums['confirmed'],owner_sums['pending'],owner_sums['budget']-owner_sums['confirmed']-owner_sums['pending'],owner_sums['budget']-owner_sums['confirmed']-owner_sums['pending']-owner_sums['reserved'],execution_percent(owner_sums['confirmed']+owner_sums['pending'],owner_sums['budget'])])
-        add(f'{owner[:20]}_經費',['經費類別','經費屬性','預算科目','流用後預算','流入','流出','已核銷','待核銷','帳面餘額','可用餘額','執行率（含待核銷）（%）'],owner_rows)
-        owner_e=sorted((x for x in expenses if x['owner']==owner),key=expense_sort_key)
-        add(f'{owner[:20]}_核銷',['狀態','登錄日期','憑證日期','經費屬性','預算科目','核銷金額','付款對象','分配金額','備註'],[[expense_state(x),date_text(x.get('submitted_date')),date_text(x.get('voucher_date')),x.get('category',''),x['subject'],round_amount(x['amount']),payee_names(x),payee_amounts(x),x.get('note','')] for x in owner_e])
+        if reconciliation:
+            owner_rows.append(['單位合計','','',owner_sums['budget'],owner_sums['incoming'],owner_sums['outgoing'],owner_sums['confirmed'],owner_sums['budget']-owner_sums['confirmed'],execution_percent(owner_sums['confirmed'],owner_sums['budget'])])
+            add(f'{owner[:20]}_經費',['經費類別','經費屬性','預算科目','流用後預算','流入','流出','已核銷','對帳餘額','執行率（%）'],owner_rows)
+        else:
+            owner_rows.append(['單位合計','','',owner_sums['budget'],owner_sums['incoming'],owner_sums['outgoing'],owner_sums['confirmed'],owner_sums['pending'],owner_sums['budget']-owner_sums['confirmed']-owner_sums['pending'],owner_sums['budget']-owner_sums['confirmed']-owner_sums['pending']-owner_sums['reserved'],execution_percent(owner_sums['confirmed']+owner_sums['pending'],owner_sums['budget'])])
+            add(f'{owner[:20]}_經費',['經費類別','經費屬性','預算科目','流用後預算','流入','流出','已核銷','待核銷','帳面餘額','可用餘額','執行率（含待核銷）（%）'],owner_rows)
+        owner_e=sorted((x for x in expenses if x['owner']==owner and (not reconciliation or (not x['voided'] and not is_pending_expense(x)))),key=expense_sort_key)
+        owner_expense_headers=['登錄日期','憑證日期','經費屬性','預算科目','核銷金額','付款對象','分配金額','備註'] if reconciliation else ['狀態','登錄日期','憑證日期','經費屬性','預算科目','核銷金額','付款對象','分配金額','備註']
+        owner_expense_rows=[[date_text(x.get('submitted_date')),date_text(x.get('voucher_date')),x.get('category',''),x['subject'],round_amount(x['amount']),payee_names(x),payee_amounts(x),x.get('note','')] if reconciliation else [expense_state(x),date_text(x.get('submitted_date')),date_text(x.get('voucher_date')),x.get('category',''),x['subject'],round_amount(x['amount']),payee_names(x),payee_amounts(x),x.get('note','')] for x in owner_e]
+        add(f'{owner[:20]}_核銷',owner_expense_headers,owner_expense_rows)
         owner_t=[x for x in transfers if x['from_owner']==owner or x['to_owner']==owner]
-        add(f'{owner[:20]}_流用紀錄',*transfer_record_sheet(owner_t,False))
+        owner_t=[x for x in owner_t if not reconciliation or x.get('status')=='executed']
+        owner_transfer_headers,owner_transfer_rows=transfer_record_sheet(owner_t,False)
+        if reconciliation:owner_transfer_headers=owner_transfer_headers[:-1];owner_transfer_rows=[row[:-1] for row in owner_transfer_rows]
+        add(f'{owner[:20]}_流用紀錄',owner_transfer_headers,owner_transfer_rows)
     if include_overall or selected_owners:
-        add('餘額說明',['名詞','說明'],[['帳面餘額','流用後預算扣除已核銷與待核銷後的金額，不考慮規劃中流用。'],['可用餘額','帳面餘額再扣除規劃中流用已保留的金額，代表目前實際還能核銷或流出的金額。']])
+        if reconciliation:add('餘額說明',['名詞','說明'],[['對帳餘額','流用後預算扣除已核銷後的金額。']])
+        else:add('餘額說明',['名詞','說明'],[['帳面餘額','流用後預算扣除已核銷與待核銷後的金額，不考慮規劃中流用。'],['可用餘額','帳面餘額再扣除規劃中流用已保留的金額，代表目前實際還能核銷或流出的金額。']])
     return project,result
 
 
@@ -2013,7 +2101,7 @@ def make_pdf_sheets(sheets,orientation='landscape'):
         cell_style=ParagraphStyle('BudgetCell',fontName=font_name,fontSize=8,leading=11,wordWrap='CJK')
         head_style=ParagraphStyle('BudgetHead',parent=cell_style,fontSize=8.5,leading=12,textColor=colors.white,alignment=TA_CENTER)
         table_data=[[Paragraph(escape(str(x)),head_style) for x in headers]]
-        numeric_headers=MONEY_EXPORT_HEADERS|{'執行率（含待核銷）（%）','真實執行率','預估執行率'}
+        numeric_headers=MONEY_EXPORT_HEADERS|{'執行率（含待核銷）（%）','執行率（%）','真實執行率','預估執行率'}
         for row in rows:
             cells=[]
             for i,value in enumerate(row):
@@ -2039,8 +2127,9 @@ def make_pdf_sheets(sheets,orientation='landscape'):
     result=io.BytesIO();writer.write(result);return result.getvalue()
 
 
-def sheets_to_markdown(project, sheets):
-    lines=[f"# {project['name']}（{project['code']}）經費匯出",'']
+def sheets_to_markdown(project, sheets, report_type='general'):
+    report_label=' · 對帳報表' if report_type=='reconciliation' else ''
+    lines=[f"# {project['name']}（{project['code']}）經費匯出{report_label}",'']
     for name,headers,rows in sheets:
         lines.extend([f'## {name}','', '| '+' | '.join(str(x).replace('|','\\|') for x in headers)+' |','| '+' | '.join(['---']*len(headers))+' |'])
         for row in rows:lines.append('| '+' | '.join(str(x if x is not None else '').replace('|','\\|').replace('\n',' ') for x in row)+' |')
@@ -2405,35 +2494,38 @@ class Handler(BaseHTTPRequestHandler):
             except Exception as e:self.send(400,json.dumps({'error':display_error(e)},ensure_ascii=False))
         elif path=='/api/export-data':
             from urllib.parse import parse_qs, quote
-            q=parse_qs(urlparse(self.path).query);scope=q.get('scope',['overall'])[0];fmt=q.get('format',['xlsx'])[0];mode=q.get('mode',['combined'])[0];orientation=q.get('orientation',['landscape'])[0]
+            q=parse_qs(urlparse(self.path).query);scope=q.get('scope',['overall'])[0];fmt=q.get('format',['xlsx'])[0];mode=q.get('mode',['combined'])[0];orientation=q.get('orientation',['landscape'])[0];report_type=q.get('report_type',['general'])[0]
             try:
+                if report_type not in ('general','reconciliation'):raise ValueError('不支援的報表類型')
                 try:pid=int(q.get('project_id',['0'])[0])
                 except (TypeError,ValueError):raise ValueError('專案編號格式不正確')
                 data=bootstrap();owners=q.get('owner',[]);include_overall=scope in ('overall','all')
-                project,sheets=build_export_sheets(data,pid,owners,include_overall)
+                project,sheets=build_export_sheets(data,pid,owners,include_overall,report_type)
                 if not sheets:raise ValueError('請至少選擇一種要匯出的資料')
                 if scope=='owners' and not owners:raise ValueError('請至少選擇一位單位')
+                report_suffix='_對帳' if report_type=='reconciliation' else ''
                 if fmt=='md':
                     if mode=='separate' and scope=='owners':
                         mem=io.BytesIO()
                         with zipfile.ZipFile(mem,'w',zipfile.ZIP_DEFLATED) as z:
                             for owner in owners:
-                                _,owner_sheets=build_export_sheets(data,pid,[owner],False);safe=re.sub(r'[\\/:*?"<>|]','_',owner)
-                                z.writestr(f'{safe}.md',sheets_to_markdown(project,owner_sheets))
-                        content=mem.getvalue();typ='application/zip';filename=f'{project["code"]}_單位經費.zip'
-                    else:content='\ufeff'+sheets_to_markdown(project,sheets);typ='text/markdown; charset=utf-8';filename=f'{project["code"]}_經費報表.md'
+                                _,owner_sheets=build_export_sheets(data,pid,[owner],False,report_type);safe=re.sub(r'[\\/:*?"<>|]','_',owner)
+                                z.writestr(f'{safe}{report_suffix}.md',sheets_to_markdown(project,owner_sheets,report_type))
+                        content=mem.getvalue();typ='application/zip';filename=f'{project["code"]}_單位經費{report_suffix}.zip'
+                    else:content='\ufeff'+sheets_to_markdown(project,sheets,report_type);typ='text/markdown; charset=utf-8';filename=f'{project["code"]}_經費報表{report_suffix}.md'
                 elif fmt=='pdf':
                     if orientation not in ('portrait','landscape'):orientation='landscape'
-                    content=make_pdf_sheets([(f'{project["name"]}（{project["code"]}） · {name}',headers,rows) for name,headers,rows in sheets],orientation);typ='application/pdf';filename=f'{project["code"]}_經費報表.pdf'
+                    report_label='對帳報表 · ' if report_type=='reconciliation' else ''
+                    content=make_pdf_sheets([(f'{project["name"]}（{project["code"]}） · {report_label}{name}',headers,rows) for name,headers,rows in sheets],orientation);typ='application/pdf';filename=f'{project["code"]}_經費報表{report_suffix}.pdf'
                 else:
                     if mode=='separate' and scope=='owners':
                         mem=io.BytesIO()
                         with zipfile.ZipFile(mem,'w',zipfile.ZIP_DEFLATED) as z:
                             for owner in owners:
-                                _,owner_sheets=build_export_sheets(data,pid,[owner],False);safe=re.sub(r'[\\/:*?"<>|]','_',owner)
-                                z.writestr(f'{safe}.xlsx',make_xlsx_sheets(owner_sheets))
-                        content=mem.getvalue();typ='application/zip';filename=f'{project["code"]}_單位經費.zip'
-                    else:content=make_xlsx_sheets(sheets);typ='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';filename=f'{project["code"]}_經費報表.xlsx'
+                                _,owner_sheets=build_export_sheets(data,pid,[owner],False,report_type);safe=re.sub(r'[\\/:*?"<>|]','_',owner)
+                                z.writestr(f'{safe}{report_suffix}.xlsx',make_xlsx_sheets(owner_sheets))
+                        content=mem.getvalue();typ='application/zip';filename=f'{project["code"]}_單位經費{report_suffix}.zip'
+                    else:content=make_xlsx_sheets(sheets);typ='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';filename=f'{project["code"]}_經費報表{report_suffix}.xlsx'
                 self.send(200,content,typ,{'Content-Disposition':f"attachment; filename*=UTF-8''{quote(filename)}"})
             except Exception as e:self.send(400,json.dumps({'error':display_error(e)},ensure_ascii=False))
         elif path=='/api/export':

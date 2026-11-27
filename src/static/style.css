@@ -1812,3 +1812,5 @@ body.table-workspace-page #content .table-component[data-table-mode="standard"]:
     display:none!important;
   }
 }
+
+.budget-summary-row{cursor:pointer}.budget-summary-row:hover>td{background:var(--hover-surface)}.budget-summary-total>td{font-weight:700;border-top:2px solid var(--line)}

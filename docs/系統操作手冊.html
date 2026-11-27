@@ -15,8 +15,8 @@
 <li><a href="#start"><span>2</span>開始使用</a></li>
 <li><a href="#terms"><span>3</span>基本名詞</a></li>
 <li><a href="#projects"><span>4</span>所有專案</a></li>
-<li><a href="#overview"><span>5</span>經費總覽</a></li>
-<li><a href="#budget"><span>6</span>預算明細</a></li>
+<li><a href="#overview"><span>5</span>專案總覽</a></li>
+<li><a href="#budget"><span>6</span>專案經費</a></li>
 <li><a href="#expenses"><span>7</span>核銷紀錄</a></li>
 <li><a href="#transfers"><span>8</span>經費流用</a></li>
 <li><a href="#estimate"><span>9</span>補充保費估算</a></li>
@@ -46,8 +46,8 @@
 <tbody>
 <tr><td>建立新專案</td><td>頂端按 <span class="ui">＋ 新增專案</span></td><td><a href="#projects">所有專案</a></td></tr>
 <tr><td>修改專案日期、名稱或經費總額</td><td>進入專案後，按頂端專案選單旁的齒輪按鈕（⚙）</td><td><a href="#projects">所有專案</a></td></tr>
-<tr><td>編列預算</td><td><span class="ui">預算明細</span> → <span class="ui">＋ 新增預算</span>，或用 <span class="ui">匯入預算明細</span></td><td><a href="#budget">預算明細</a></td></tr>
-<tr><td>查某個科目還剩多少錢</td><td><span class="ui">預算明細</span> 看「可用餘額」欄</td><td><a href="#budget">預算明細</a></td></tr>
+<tr><td>編列預算</td><td><span class="ui">專案經費</span> → <span class="ui">＋ 新增預算</span>，或用 <span class="ui">匯入預算明細</span></td><td><a href="#budget">專案經費</a></td></tr>
+<tr><td>查某個科目還剩多少錢</td><td><span class="ui">專案經費</span> → <span class="ui">預算明細</span> 看「可用餘額」欄</td><td><a href="#budget">專案經費</a></td></tr>
 <tr><td>登錄一張發票或收據</td><td><span class="ui">核銷紀錄</span> → <span class="ui">＋ 新增核銷批次</span> → 填明細</td><td><a href="#expenses">核銷紀錄</a></td></tr>
 <tr><td>補填 <span class="st st-pending">待核銷</span> 的日期</td><td>到 <span class="ui">核銷紀錄</span> 補填缺少的登錄日期或憑證日期</td><td><a href="#expenses">核銷紀錄</a></td></tr>
 <tr><td>修改核銷的金額、單位或科目</td><td><span class="ui">核銷紀錄</span> 該列按 <span class="ui">編輯</span></td><td><a href="#expenses">核銷紀錄</a></td></tr>
@@ -55,7 +55,7 @@
 <tr><td>取消作廢</td><td><span class="ui">作廢</span> 分頁勾選 → <span class="ui">復原</span></td><td><a href="#expenses">核銷紀錄</a></td></tr>
 <tr><td>把 A 科目（或單位）的錢挪到 B</td><td><span class="ui">經費流用</span> → <span class="ui">＋ 新增流用</span>，狀態選 <span class="st st-executed">已流用</span></td><td><a href="#transfers">經費流用</a></td></tr>
 <tr><td>先記下準備挪的錢，還沒定案</td><td><span class="ui">經費流用</span> → <span class="ui">＋ 新增流用</span>，狀態選 <span class="st st-planned">規劃中</span></td><td><a href="#transfers">經費流用</a></td></tr>
-<tr><td>把規劃中的流用改成正式</td><td>勾選 → <span class="ui">轉為已流用</span>，或單筆編輯把狀態改為「已流用」</td><td><a href="#transfers">經費流用</a></td></tr>
+<tr><td>變更流用狀態</td><td>勾選 → <span class="ui">轉為已流用</span> 或 <span class="ui">轉為規劃中</span>，也可單筆編輯狀態</td><td><a href="#transfers">經費流用</a></td></tr>
 <tr><td>把已流用改回規劃中</td><td>該筆按 <span class="ui">編輯</span>，狀態改為「規劃中」</td><td><a href="#transfers">經費流用</a></td></tr>
 <tr><td>修改 <span class="st st-locked">已鎖定</span> 的流用</td><td>勾選 → <span class="ui">解鎖</span>，再按 <span class="ui">編輯</span></td><td><a href="#transfers">經費流用</a></td></tr>
 <tr><td>查某段期間各科目因流用增減多少</td><td><span class="ui">流用科目變更</span> 填日期 → <span class="ui">查詢</span></td><td><a href="#application">流用科目變更</a></td></tr>
@@ -99,8 +99,8 @@
 <ol class="steps">
 <li><b>建立專案</b><p>按 <span class="ui">＋ 新增專案</span> 填寫基本資料。系統會自動建立 5 個預設選項：經費類別「補助款」「自籌款」，經費屬性「人事費」「業務費」「資本門」。</p></li>
 <li><b>建立單位與預算科目</b><p>到 <span class="ui">選項資料</span> 新增單位和預算科目，這兩種沒有預設值。如果下一步要匯入預算，可以略過，因為預算匯入會自動建立缺少的選項。</p></li>
-<li><b>編列預算</b><p>到 <span class="ui">匯入預算明細</span> 匯入，或在 <span class="ui">預算明細</span> 逐筆新增。</p></li>
-<li><b>核對預算</b><p>在 <span class="ui">預算明細</span> 確認金額無誤後，再開始登錄核銷與流用。</p></li>
+<li><b>編列預算</b><p>到 <span class="ui">匯入預算明細</span> 匯入，或到 <span class="ui">專案經費</span> 切換至 <span class="ui">預算明細</span> 逐筆新增。</p></li>
+<li><b>核對預算</b><p>在 <span class="ui">專案經費</span> 的總表或明細確認金額無誤後，再開始登錄核銷與流用。</p></li>
 </ol>
 
 <details>
@@ -216,7 +216,7 @@
 </section>
 
 <section id="overview">
-<h2><span class="no">5</span>經費總覽</h2>
+<h2><span class="no">5</span>專案總覽</h2>
 <p>進入專案後的第一頁，一次查看執行狀況。</p>
 <h3>摘要卡片</h3>
 <div class="tbl"><table>
@@ -233,15 +233,15 @@
 <li><strong>筆記區：</strong>寫下專案備忘事項，按 <span class="ui">儲存筆記</span> 保存。</li>
 <li><strong>每月執行率：</strong>真實模式按登錄日期累積已核銷金額；預估模式另加一條含待核銷的預估線。待核銷全部計入本月；本月在專案期間外時放在最近的首月或末月。分母都是專案經費總額。</li>
 <li><strong>依經費類別與經費屬性：</strong>每個經費類別先列「類別小計」，再分列經費屬性。真實模式顯示流用後預算、已核銷、可用餘額與真實執行率；預估模式另顯示待核銷，執行率含待核銷。</li>
-<li><strong>依單位：</strong>真實模式顯示流用後預算、可用餘額與真實執行率；預估模式另顯示待核銷。按 <span class="ui">查看</span> 會跳到預算明細，只顯示該單位的資料。</li>
+<li><strong>依單位：</strong>真實模式顯示流用後預算、可用餘額與真實執行率；預估模式另顯示待核銷。按 <span class="ui">查看</span> 會跳到專案經費總表，並套用該單位篩選。</li>
 <li><strong>待核銷：</strong>列出所有 <span class="st st-pending">待核銷</span> 紀錄，可按 <span class="ui">編輯</span> 直接處理。</li>
 </ul>
 <div class="callout warn"><b>表格的執行率和摘要卡片不同</b><p>兩張表的真實執行率＝已核銷 ÷ 該列流用後預算；預估執行率＝（已核銷＋待核銷）÷ 該列流用後預算。可用餘額在兩種模式都扣除待核銷及規劃流出。</p></div>
 </section>
 
 <section id="budget">
-<h2><span class="no">6</span>預算明細</h2>
-<p>編列、修改和查看每筆預算明細。</p>
+<h2><span class="no">6</span>專案經費</h2>
+<p>預設顯示依經費類別、經費屬性與預算科目彙總的「專案經費總表」；點擊一列可切換至「預算明細」並帶入篩選條件。切換至明細後可新增、修改、篩選或刪除個別預算。</p>
 <h3>新增預算</h3>
 <ol class="steps">
 <li><b>按 <span class="ui">＋ 新增預算</span></b></li>
@@ -386,7 +386,8 @@
 </ol>
 
 <h3>把已流用改回規劃中</h3>
-<p>按 <span class="ui">編輯</span>，把狀態改為「規劃中」後儲存。如果這樣做會讓其他預算明細超支，系統會先列出影響，確認後才儲存。</p>
+<p><strong>單筆：</strong>按 <span class="ui">編輯</span>，把狀態改為「規劃中」後儲存。</p>
+<p><strong>多筆：</strong>勾選未鎖定的已流用紀錄，按 <span class="ui">轉為規劃中</span>。系統會先整批試算；若有已鎖定或非已流用項目，或轉換會使經費上限／其他規劃圈存不足，會列出相關紀錄與原因，整批不會寫入。轉換會清除流入明細連結、保留流出明細及金額，既有 0 元流入明細會保留。若個別明細因此新增或加深透支，視窗會列出科目及前後餘額；按「取消」不寫入，按「仍要轉換」才儲存。</p>
 
 <h3>修改或刪除流用</h3>
 <ul>
@@ -399,7 +400,7 @@
 <ul>
 <li>分頁：<span class="ui">總覽</span>、<span class="ui">未鎖定</span>、<span class="ui">已鎖定</span>、<span class="ui">規劃中</span>（有資料時顯示警告圖示 ⚠️）。</li>
 <li>可依經費類別、流出單位、流入單位篩選，或輸入關鍵字搜尋。</li>
-<li>勾選後可以按 <span class="ui">轉為已流用</span>、<span class="ui">刪除</span>、<span class="ui">鎖定</span>、<span class="ui">解鎖</span>。解鎖前會要求確認；選取的項目中有已鎖定紀錄時，刪除會被拒絕。</li>
+<li>勾選後可以按 <span class="ui">轉為已流用</span>、<span class="ui">轉為規劃中</span>、<span class="ui">刪除</span>、<span class="ui">鎖定</span>、<span class="ui">解鎖</span>。狀態轉換只接受未鎖定且狀態相符的紀錄；試算有任何不合格項目或上限不足時整批拒絕。個別明細新增或加深透支會先要求確認。解鎖前會要求確認；選取的項目中有已鎖定紀錄時，刪除會被拒絕。</li>
 </ul>
 </section>
 
@@ -598,7 +599,7 @@
 <p>跨好幾個頁面的工作，依以下順序進行。</p>
 <h3>月底對帳</h3>
 <ol class="steps">
-<li><b>處理待核銷</b><p>到 <span class="ui">經費總覽</span> 的「待核銷」區塊，或 <span class="ui">核銷紀錄</span> 的 <span class="ui">待核銷</span> 分頁，補填缺少的登錄日期或憑證日期。</p></li>
+<li><b>處理待核銷</b><p>到 <span class="ui">專案總覽</span> 的「待核銷」區塊，或 <span class="ui">核銷紀錄</span> 的 <span class="ui">待核銷</span> 分頁，補填缺少的登錄日期或憑證日期。</p></li>
 <li><b>檢查超支</b><p>到 <span class="ui">預算明細</span> 的 <span class="ui">超支</span> 分頁，確認有沒有超支的科目，需要時用經費流用調整。</p></li>
 <li><b>處理規劃中流用</b><p>到 <span class="ui">經費流用</span> 的 <span class="ui">規劃中</span> 分頁，已定案的轉為已流用，不再需要的刪除。</p></li>
 <li><b>產生報表</b><p>到 <span class="ui">匯出資料</span> 產生報表，或用 <span class="ui">Email 經費報告</span> 寄給各單位。</p></li>
